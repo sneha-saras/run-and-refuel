@@ -546,6 +546,91 @@ function naiveParseActivity(text) {
   return { type, distanceKm, durationMin, feel };
 }
 
+// --- Conversational activity gathering ---
+// The coach converses to capture today's activity, asking a follow-up when key
+// info is missing instead of guessing. Returns { reply, complete, fields }.
+
+const GATHER_SYSTEM = [
+  "You are a friendly running coach. Your ONLY job right now is to find out what the user did today, so you can suggest recovery meals next.",
+  "You need: (1) activity type — run, walk, or rest day — AND (2) at least one of distance (km) or duration (minutes). How it felt (easy/moderate/hard) is a nice bonus.",
+  "",
+  "Rules:",
+  "- If you do NOT yet have type + (distance OR duration), ask ONE short, friendly follow-up for the single most important missing piece (e.g. 'Nice — how far did you run?' or 'How long were you out?'). Do NOT guess and do NOT proceed.",
+  "- Never ask for something already stated. Ask only for what's missing, one question at a time.",
+  "- A rest day needs no distance — it's complete immediately.",
+  "- Once you have enough, set complete=true, fill the activity fields, and give a brief confirming reply like 'Got it — a 5k run. Pulling your refuel options…'.",
+  "",
+  "Return STRICT JSON only — no markdown, no fences, no prose outside the JSON:",
+  '{ "reply": string, "complete": boolean, "activity": { "type": "run"|"walk"|"rest", "distanceKm": number, "durationMin": number, "feel": "easy"|"moderate"|"hard" } | null }',
+  "When complete is false, activity MUST be null.",
+].join("\n");
+
+// Fill a missing distance/duration from the other using a rough pace, so the
+// calorie math (which needs duration) is never zero when only distance is given.
+function fillActivityGaps(f) {
+  if (f.type === "rest") {
+    f.distanceKm = 0;
+    f.durationMin = 0;
+    return f;
+  }
+  const paceMinPerKm = f.type === "walk" ? 11 : 6; // ~6:00/km run, ~11:00/km walk
+  if (!f.durationMin && f.distanceKm) f.durationMin = Math.round(f.distanceKm * paceMinPerKm);
+  if (!f.distanceKm && f.durationMin) f.distanceKm = +(f.durationMin / paceMinPerKm).toFixed(1);
+  return f;
+}
+
+function normalizeFields(o) {
+  return fillActivityGaps({
+    type: ["run", "walk", "rest"].includes(o && o.type) ? o.type : "run",
+    distanceKm: Number(o && o.distanceKm) || 0,
+    durationMin: Number(o && o.durationMin) || 0,
+    feel: ["easy", "moderate", "hard"].includes(o && o.feel) ? o.feel : "moderate",
+  });
+}
+
+// No-LLM fallback: infer completeness from the accumulated user text.
+function naiveGather(history) {
+  const userText = (history || [])
+    .filter((m) => m && m.role !== "assistant" && m.role !== "coach")
+    .map((m) => m.content)
+    .join(" ");
+  const t = userText.toLowerCase();
+  const hasDist = /(\d+(?:\.\d+)?)\s*k/.test(t);
+  const hasDur = /(\d+)\s*(?:min|minute|hour)/.test(t);
+  const isRest = /\brest|didn'?t|nothing|off day|skipped\b/.test(t);
+  if (isRest || hasDist || hasDur) {
+    return { reply: "Got it — thanks! Pulling your refuel options…", complete: true, fields: naiveParseActivity(userText) };
+  }
+  const type = /walk/.test(t) ? "walk" : "run";
+  return {
+    reply: `Nice! How far did you ${type === "walk" ? "walk" : "run"}, or how long were you out?`,
+    complete: false,
+    fields: null,
+  };
+}
+
+async function gatherActivity(profile, history) {
+  const hasKey = !!(process.env.OPENAI_API_KEY && process.env.OPENAI_BASE_URL);
+  if (!hasKey) return naiveGather(history);
+  const safeHistory = (Array.isArray(history) ? history : [])
+    .filter((m) => m && m.content)
+    .map((m) => ({ role: m.role === "assistant" || m.role === "coach" ? "assistant" : "user", content: String(m.content) }));
+  try {
+    const raw = await chatCompletion([{ role: "system", content: GATHER_SYSTEM }, ...safeHistory], { temperature: 0.3 });
+    const cleaned = stripFences(raw);
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    const o = JSON.parse(match ? match[0] : cleaned);
+    const complete = !!o.complete && o.activity;
+    return {
+      reply: typeof o.reply === "string" ? o.reply : "Tell me a bit more about your workout.",
+      complete: !!complete,
+      fields: complete ? normalizeFields(o.activity) : null,
+    };
+  } catch (e) {
+    return naiveGather(history); // graceful fallback
+  }
+}
+
 async function parseActivityFromText(text) {
   const hasKey = !!(process.env.OPENAI_API_KEY && process.env.OPENAI_BASE_URL);
   if (!hasKey) return naiveParseActivity(text);
@@ -587,4 +672,5 @@ module.exports = {
   parseCoachResponse,
   coachReply,
   parseActivityFromText,
+  gatherActivity,
 };

@@ -16,7 +16,7 @@ import MealCard from "./components/MealCard";
 import { ProfileForm, ActivityForm } from "./components/Forms";
 import StravaConnect from "./components/StravaConnect";
 import CoachChat from "./components/CoachChat";
-import VoiceActivity from "./components/VoiceActivity";
+import CoachActivity from "./components/CoachActivity";
 
 const MEAL_TIMES = [
   { value: "breakfast", label: "Breakfast" },
@@ -256,15 +256,9 @@ export default function App() {
       {step === 2 && (
         <section>
           <h2 className="section-title">Step 2 · Add today's activity</h2>
-          <p className="section-sub">Speak it, connect Strava, or type it — whatever's easiest.</p>
+          <p className="section-sub">Easiest: connect Strava. Or just tell the coach what you did.</p>
 
-          <div className="card card--voice">
-            <h3 className="card-title">🎤 Just say what you did</h3>
-            <VoiceActivity profile={profile} onLogged={onActivitySet} />
-          </div>
-
-          <div className="or-divider"><span>or connect Strava</span></div>
-
+          {/* Strava FIRST — the primary, one-tap option */}
           <StravaConnect
             status={stravaStatus}
             profile={profile}
@@ -272,15 +266,22 @@ export default function App() {
             onStatusChange={onStravaStatusChange}
           />
 
-          <div className="or-divider"><span>or enter manually</span></div>
+          <div className="or-divider"><span>or tell the coach</span></div>
 
-          <div className="card">
-            <ActivityForm
-              profile={profile}
-              onLogged={onActivitySet}
-              submitLabel="Use this activity & continue →"
-            />
+          <div className="card card--voice">
+            <CoachActivity profile={profile} onCaptured={onActivitySet} />
           </div>
+
+          <details className="collapsible">
+            <summary className="collapsible__summary">✍️ Or enter it manually</summary>
+            <div className="collapsible__body">
+              <ActivityForm
+                profile={profile}
+                onLogged={onActivitySet}
+                submitLabel="Use this activity & continue →"
+              />
+            </div>
+          </details>
 
           <button className="link-btn" onClick={() => setStep(1)}>← Back to profile</button>
         </section>

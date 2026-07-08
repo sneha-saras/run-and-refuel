@@ -4,7 +4,13 @@ const path = require("path");
 
 const storage = require("./storage");
 const { buildActivitySummary } = require("./activity");
-const { getMealTime, suggestMeals, coachReply, parseActivityFromText } = require("./meals");
+const {
+  getMealTime,
+  suggestMeals,
+  coachReply,
+  parseActivityFromText,
+  gatherActivity,
+} = require("./meals");
 const strava = require("./strava");
 
 const app = express();
@@ -89,6 +95,28 @@ app.get("/api/meals", async (req, res) => {
     res.json({ mealTime, category, ...result });
   } catch (err) {
     res.status(500).json({ error: "Failed to generate meals." });
+  }
+});
+
+// Conversational activity capture: the coach asks follow-ups until it has
+// enough (type + distance/duration), then returns the activity.
+// Body: { messages: [{role,content}], profile }
+// Returns: { reply, complete, activity|null }
+app.post("/api/coach/activity", async (req, res) => {
+  const { messages, profile } = req.body || {};
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: "No messages provided." });
+  }
+  try {
+    const r = await gatherActivity(profile || null, messages);
+    if (r.complete && r.fields) {
+      const activity = buildActivitySummary(r.fields, profile || null, []);
+      return res.json({ reply: r.reply, complete: true, activity });
+    }
+    res.json({ reply: r.reply, complete: false, activity: null });
+  } catch (err) {
+    console.error("[coach/activity] error:", err.message);
+    res.status(502).json({ error: "Coach is unavailable right now." });
   }
 });
 

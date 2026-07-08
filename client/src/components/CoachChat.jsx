@@ -9,11 +9,21 @@ const PROMPTS = [
   "No paneer",
 ];
 
+// The coach's opening line in Step 3 — marks the shift from GATHERING the
+// activity to ADJUSTING the meals, referencing what was captured.
+function introFor(a) {
+  const tail = "Want me to tweak anything — quicker, lighter, no paneer, something cold?";
+  if (!a) return `Here are your refuel suggestions below. ${tail}`;
+  if (a.type === "rest") return `Based on your rest day, here are your refuel suggestions below. ${tail}`;
+  const dist = a.distanceKm ? `${a.distanceKm}km ` : "";
+  return `Based on your ${dist}${a.type}, here are your refuel suggestions below. ${tail}`;
+}
+
 // Voice-first coach hero. Speaks with you: hear your activity + goal (already
 // known) fused with what you say now (mood, cravings, constraints) -> updated
 // meals + a spoken reply.
 export default function CoachChat({ meals, profile, activity, onMealsUpdated }) {
-  const [messages, setMessages] = useState([]); // { role: 'user' | 'coach', content }
+  const [messages, setMessages] = useState(() => [{ role: "coach", content: introFor(activity) }]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [voiceReply, setVoiceReply] = useState(SUPPORTS_TTS); // spoken reply ON by default

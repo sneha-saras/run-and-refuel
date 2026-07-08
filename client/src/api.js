@@ -21,11 +21,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ input, profile, previousDate }),
     }),
-  // Turn a spoken sentence ("I just ran 5k") into an activity summary.
-  parseActivity: (text, profile) =>
-    req("/api/activity/parse", {
+  // Conversational activity capture: send the running dialogue, get back a
+  // follow-up question (complete:false) or the captured activity (complete:true).
+  gatherActivity: (messages, profile) =>
+    req("/api/coach/activity", {
       method: "POST",
-      body: JSON.stringify({ text, profile }),
+      body: JSON.stringify({ messages, profile }),
     }),
   // Meal suggestions — profile + activity supplied by the client.
   getMeals: (profile, activity, mealTime, category = "meal") =>
