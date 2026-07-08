@@ -21,6 +21,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ input, profile, previousDate }),
     }),
+  // Turn a spoken sentence ("I just ran 5k") into an activity summary.
+  parseActivity: (text, profile) =>
+    req("/api/activity/parse", {
+      method: "POST",
+      body: JSON.stringify({ text, profile }),
+    }),
   // Meal suggestions — profile + activity supplied by the client.
   getMeals: (profile, activity, mealTime, category = "meal") =>
     req("/api/meals", {

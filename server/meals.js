@@ -465,7 +465,9 @@ function buildCoachSystemPrompt(profile, activity, currentMeals) {
     "- Keep meals realistic Indian home cooking, matched to their activity and goal, respecting diet/cuisine/effort.",
     "- Always return exactly 3 updated suggestions in the same shape as before.",
     "- Adjust based on the latest message (e.g. quicker, lighter, cold, add something, swap an ingredient).",
-    "- IMPORTANT: the meal cards are shown ABOVE the chat, so the user may not notice they changed. Your 'reply' MUST explicitly tell them the meals above were updated, and end with a light follow-up question.",
+    "- React to MOOD, ENERGY, CRAVINGS and constraints the user voices: 'exhausted / don't feel like cooking' -> minimal-effort, comforting, low effort_minutes; 'starving' -> more filling/calorie-dense; 'something cold' -> cold/no-cook dishes; 'light' -> lighter.",
+    "- FUSE both signals: your reply should reference BOTH their actual activity today AND what they just said (e.g. 'After your 5k and since you're wiped, here's a no-cook option...').",
+    "- IMPORTANT: the meal cards are shown near the chat, so the user may not notice they changed. Your 'reply' MUST explicitly tell them the meals were updated, and end with a light follow-up question.",
     "  End the reply with something like: \"✅ I've updated your meals above — want me to tweak anything else?\" (vary the wording naturally).",
     "",
     "Return STRICT JSON only — no markdown, no code fences, no prose outside the JSON. Shape:",
@@ -519,6 +521,58 @@ async function coachReply(profile, activity, currentMeals, history) {
   return parseCoachResponse(raw);
 }
 
+// =====================================================================
+// Voice-driven activity: turn a spoken sentence ("I just ran 5k, felt
+// hard") into the raw activity input. Lets voice alone drive the flow
+// without Strava or the manual form.
+// =====================================================================
+
+function naiveParseActivity(text) {
+  const t = (text || "").toLowerCase();
+  const type = /\bwalk|walked|walking\b/.test(t)
+    ? "walk"
+    : /\brest|didn'?t|nothing|no run|off day|skipped\b/.test(t)
+    ? "rest"
+    : "run";
+  const km = (t.match(/(\d+(?:\.\d+)?)\s*k/) || [])[1];
+  const min = (t.match(/(\d+)\s*(?:min|minute)/) || [])[1];
+  const feel = /hard|tough|exhaust|intense|brutal|fast/.test(t)
+    ? "hard"
+    : /easy|light|chill|slow|relaxed/.test(t)
+    ? "easy"
+    : "moderate";
+  const distanceKm = type === "rest" ? 0 : km ? Number(km) : 5;
+  const durationMin = type === "rest" ? 0 : min ? Number(min) : Math.round(distanceKm * 6);
+  return { type, distanceKm, durationMin, feel };
+}
+
+async function parseActivityFromText(text) {
+  const hasKey = !!(process.env.OPENAI_API_KEY && process.env.OPENAI_BASE_URL);
+  if (!hasKey) return naiveParseActivity(text);
+  const sys = [
+    "Extract the workout from the user's sentence. Return STRICT JSON only (no prose, no fences):",
+    '{ "type": "run" | "walk" | "rest", "distanceKm": number, "durationMin": number, "feel": "easy" | "moderate" | "hard" }',
+    "If distance or duration isn't stated, estimate sensibly (a 5k run is ~30 min). If they did no exercise / a rest day, use type 'rest' with zeros.",
+  ].join("\n");
+  try {
+    const raw = await chatCompletion(
+      [{ role: "system", content: sys }, { role: "user", content: text }],
+      { temperature: 0.2 }
+    );
+    const cleaned = stripFences(raw);
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    const o = JSON.parse(match ? match[0] : cleaned);
+    return {
+      type: ["run", "walk", "rest"].includes(o.type) ? o.type : "run",
+      distanceKm: Number(o.distanceKm) || 0,
+      durationMin: Number(o.durationMin) || 0,
+      feel: ["easy", "moderate", "hard"].includes(o.feel) ? o.feel : "moderate",
+    };
+  } catch (e) {
+    return naiveParseActivity(text); // graceful fallback
+  }
+}
+
 module.exports = {
   getMealTime,
   buildSystemPrompt,
@@ -532,4 +586,5 @@ module.exports = {
   buildCoachMessages,
   parseCoachResponse,
   coachReply,
+  parseActivityFromText,
 };

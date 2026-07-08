@@ -714,6 +714,114 @@ select:focus {
   border-color: #fecaca;
 }
 
+/* --- Coach voice hero --- */
+.coach-hero {
+  background: linear-gradient(160deg, #fff 0%, #fff6f1 100%);
+  border: 1.5px solid var(--brand-tint);
+  border-radius: 18px;
+  padding: 18px;
+  margin-bottom: 18px;
+  box-shadow: var(--shadow);
+}
+.coach-hero__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.coach-hero__title {
+  margin: 0;
+  font-size: 19px;
+}
+.coach-hero__sub {
+  margin: 3px 0 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+.mic-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 0 6px;
+}
+.mic-hero__btn {
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  border: none;
+  background: var(--brand);
+  color: #fff;
+  font-size: 32px;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(255, 90, 31, 0.35);
+  transition: transform 0.1s ease;
+}
+.mic-hero__btn:active {
+  transform: scale(0.95);
+}
+.mic-hero__btn.is-listening {
+  background: var(--hard);
+  box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5);
+  animation: micpulse 1.2s infinite;
+}
+@keyframes micpulse {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.5); }
+  70% { box-shadow: 0 0 0 18px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+.mic-hero__label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  text-align: center;
+  min-height: 20px;
+}
+
+/* Step 2 voice-activity option */
+.card--voice {
+  border: 1.5px solid var(--brand-tint);
+}
+.voice-activity {
+  text-align: center;
+}
+.voice-activity__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border: none;
+  background: var(--brand);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  padding: 12px 20px;
+  border-radius: 999px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(255, 90, 31, 0.28);
+}
+.voice-activity__btn.is-listening {
+  background: var(--hard);
+  animation: micpulse 1.2s infinite;
+}
+.voice-activity__btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.voice-activity__mic {
+  font-size: 18px;
+}
+.voice-activity__hint {
+  font-size: 12px;
+  color: var(--ink-faint);
+  margin: 10px 0 0;
+}
+.voice-activity__note {
+  font-size: 13px;
+  color: var(--brand-dark);
+  font-weight: 600;
+  margin: 8px 0 0;
+}
+
 /* --- Coach chat --- */
 .coach {
   background: var(--card);

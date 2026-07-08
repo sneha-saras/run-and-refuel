@@ -4,7 +4,7 @@ const path = require("path");
 
 const storage = require("./storage");
 const { buildActivitySummary } = require("./activity");
-const { getMealTime, suggestMeals, coachReply } = require("./meals");
+const { getMealTime, suggestMeals, coachReply, parseActivityFromText } = require("./meals");
 const strava = require("./strava");
 
 const app = express();
@@ -89,6 +89,24 @@ app.get("/api/meals", async (req, res) => {
     res.json({ mealTime, category, ...result });
   } catch (err) {
     res.status(500).json({ error: "Failed to generate meals." });
+  }
+});
+
+// Voice-driven activity: turn a spoken sentence into an activity summary,
+// so voice alone can set "what you did" (no Strava/manual form needed).
+// Body: { text, profile }  ->  { activity, heard }
+app.post("/api/activity/parse", async (req, res) => {
+  const { text, profile } = req.body || {};
+  if (!text || !String(text).trim()) {
+    return res.status(400).json({ error: "No speech text provided." });
+  }
+  try {
+    const fields = await parseActivityFromText(String(text));
+    const summary = buildActivitySummary(fields, profile || null, []);
+    res.json({ activity: summary, heard: text });
+  } catch (err) {
+    console.error("[activity/parse] error:", err.message);
+    res.status(502).json({ error: "Couldn't understand that — try the manual form." });
   }
 });
 

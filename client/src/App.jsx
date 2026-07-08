@@ -16,6 +16,7 @@ import MealCard from "./components/MealCard";
 import { ProfileForm, ActivityForm } from "./components/Forms";
 import StravaConnect from "./components/StravaConnect";
 import CoachChat from "./components/CoachChat";
+import VoiceActivity from "./components/VoiceActivity";
 
 const MEAL_TIMES = [
   { value: "breakfast", label: "Breakfast" },
@@ -255,7 +256,14 @@ export default function App() {
       {step === 2 && (
         <section>
           <h2 className="section-title">Step 2 · Add today's activity</h2>
-          <p className="section-sub">Connect Strava to pull your latest run, or enter it manually.</p>
+          <p className="section-sub">Speak it, connect Strava, or type it — whatever's easiest.</p>
+
+          <div className="card card--voice">
+            <h3 className="card-title">🎤 Just say what you did</h3>
+            <VoiceActivity profile={profile} onLogged={onActivitySet} />
+          </div>
+
+          <div className="or-divider"><span>or connect Strava</span></div>
 
           <StravaConnect
             status={stravaStatus}
@@ -288,6 +296,16 @@ export default function App() {
             <button className="chip-btn" onClick={() => setStep(1)}>⚙ Edit profile</button>
             <button className="chip-btn chip-btn--warn" onClick={startOver}>Start over</button>
           </div>
+
+          {/* Voice hero — front and center, fuses spoken context with the activity */}
+          {meals.length > 0 && !mealsLoading && (
+            <CoachChat
+              meals={meals}
+              profile={profile}
+              activity={activity}
+              onMealsUpdated={onCoachMeals}
+            />
+          )}
 
           <section
             className={`meals-section ${mealsFlash ? "meals-section--flash" : ""}`}
@@ -343,15 +361,6 @@ export default function App() {
               </div>
             )}
           </section>
-
-          {meals.length > 0 && !mealsLoading && (
-            <CoachChat
-              meals={meals}
-              profile={profile}
-              activity={activity}
-              onMealsUpdated={onCoachMeals}
-            />
-          )}
         </section>
       )}
 
