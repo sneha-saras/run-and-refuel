@@ -39,12 +39,23 @@ app.post("/api/profile", (req, res) => {
   res.json({ profile });
 });
 
-// Manual activity entry -> builds + stores a summary, returns it.
+// Manual activity entry -> builds + stores a summary, returns it. (Legacy,
+// server-stored path — kept for backward compatibility.)
 app.post("/api/activity", (req, res) => {
   const profile = storage.getProfile();
   const existingLog = storage.getActivityLog();
   const summary = buildActivitySummary(req.body || {}, profile, existingLog);
   storage.addActivity(summary);
+  res.json({ activity: summary });
+});
+
+// Stateless activity summary: compute from raw input + profile WITHOUT storing.
+// Body: { input: {type,distanceKm,durationMin,feel}, profile, previousDate? }
+// The client keeps the result in its own localStorage (per-visitor state).
+app.post("/api/activity/summary", (req, res) => {
+  const { input, profile, previousDate } = req.body || {};
+  const prior = previousDate ? [{ date: previousDate }] : [];
+  const summary = buildActivitySummary(input || {}, profile || null, prior);
   res.json({ activity: summary });
 });
 
@@ -81,11 +92,27 @@ app.get("/api/meals", async (req, res) => {
   }
 });
 
+// Stateless meals: profile + activity come from the client (localStorage).
+// Body: { profile, activity, mealTime?, category?, hour? }
+app.post("/api/meals", async (req, res) => {
+  const { profile, activity, mealTime: mt, category: cat, hour } = req.body || {};
+  if (!profile) return res.status(400).json({ error: "Set up your profile first." });
+  if (!activity) return res.status(400).json({ error: "Add today's activity first." });
+  const mealTime = mt || getMealTime(hour != null ? Number(hour) : undefined);
+  const category = cat === "snack" ? "snack" : "meal";
+  try {
+    const result = await suggestMeals(profile, activity, mealTime, category);
+    res.json({ mealTime, category, ...result });
+  } catch (err) {
+    res.status(500).json({ error: "Failed to generate meals." });
+  }
+});
+
 // Coach chat: adjust the current meal suggestions via natural-language chat.
 // Body: { messages: [{role:'user'|'assistant', content}], meals: [current meals] }
 // Returns: { reply: string, meals: [...] | null }  (null meals => keep current)
 app.post("/api/coach", async (req, res) => {
-  const { messages, meals } = req.body || {};
+  const { messages, meals, profile: bodyProfile, activity: bodyActivity } = req.body || {};
   if (!Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: "No messages provided." });
   }
@@ -96,8 +123,9 @@ app.post("/api/coach", async (req, res) => {
       meals: null,
     });
   }
-  const profile = storage.getProfile();
-  const activity = storage.getLatestActivity();
+  // Prefer client-provided (localStorage) profile/activity; fall back to storage.
+  const profile = bodyProfile || storage.getProfile();
+  const activity = bodyActivity || storage.getLatestActivity();
   try {
     const result = await coachReply(profile, activity, meals || [], messages);
     res.json(result); // { reply, meals }
@@ -143,7 +171,7 @@ app.get("/callback", async (req, res) => {
 // Pull the latest activity from Strava into the standard summary format.
 app.post("/api/strava/sync", async (req, res) => {
   try {
-    const result = await strava.syncLatestActivity();
+    const result = await strava.syncLatestActivity((req.body || {}).profile);
     if (!result.activity) {
       return res
         .status(404)

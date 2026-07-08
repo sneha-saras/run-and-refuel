@@ -13,7 +13,7 @@ const SUGGESTIONS = [
   "I'm still hungry, add something",
 ];
 
-export default function CoachChat({ meals, onMealsUpdated }) {
+export default function CoachChat({ meals, profile, activity, onMealsUpdated }) {
   const [messages, setMessages] = useState([]); // { role: 'user' | 'coach', content }
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -28,8 +28,12 @@ export default function CoachChat({ meals, onMealsUpdated }) {
   // (created when the mic starts) always sends the current suggestions.
   const mealsRef = useRef(meals);
   const messagesRef = useRef(messages);
+  const profileRef = useRef(profile);
+  const activityRef = useRef(activity);
   useEffect(() => { mealsRef.current = meals; }, [meals]);
   useEffect(() => { messagesRef.current = messages; }, [messages]);
+  useEffect(() => { profileRef.current = profile; }, [profile]);
+  useEffect(() => { activityRef.current = activity; }, [activity]);
 
   // Auto-scroll to the newest message.
   useEffect(() => {
@@ -61,7 +65,7 @@ export default function CoachChat({ meals, onMealsUpdated }) {
         role: m.role === "coach" ? "assistant" : "user",
         content: m.content,
       }));
-      const res = await api.coach(payload, mealsRef.current);
+      const res = await api.coach(payload, mealsRef.current, profileRef.current, activityRef.current);
       const reply = res.reply || "Here are some updated ideas.";
       setMessages((h) => [...h, { role: "coach", content: reply }]);
       if (res.meals && res.meals.length) onMealsUpdated(res.meals);

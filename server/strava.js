@@ -174,7 +174,7 @@ function stravaToRawInput(act) {
 
 // Sync: fetch last 7 days, map the most recent activity into the standard
 // summary format, store it, and return it (plus a lightweight 7-day list).
-async function syncLatestActivity() {
+async function syncLatestActivity(clientProfile) {
   const activities = await fetchRecentActivities(7);
   if (activities.length === 0) {
     return { activity: null, weekCount: 0 };
@@ -183,11 +183,10 @@ async function syncLatestActivity() {
   activities.sort((a, b) => new Date(b.start_date) - new Date(a.start_date));
   const latest = activities[0];
 
-  const profile = storage.getProfile();
-  const existingLog = storage.getActivityLog();
+  // Prefer the client's profile (for body weight in the calorie math).
+  const profile = clientProfile || storage.getProfile();
   const raw = stravaToRawInput(latest);
-  const summary = buildActivitySummary(raw, profile, existingLog);
-  storage.addActivity(summary);
+  const summary = buildActivitySummary(raw, profile, []);
 
   return {
     activity: summary,

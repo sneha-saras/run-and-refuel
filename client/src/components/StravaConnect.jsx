@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { api } from "../api";
 
-export default function StravaConnect({ status, onSynced, onStatusChange }) {
+export default function StravaConnect({ status, profile, onSynced, onStatusChange }) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState(null);
 
@@ -32,7 +32,7 @@ export default function StravaConnect({ status, onSynced, onStatusChange }) {
     setBusy(true);
     setNote(null);
     try {
-      const res = await api.syncStrava();
+      const res = await api.syncStrava(profile);
       onSynced(res.activity);
       setNote(
         `Synced your latest activity (${res.weekCount} in the last 7 days).`

@@ -604,6 +604,116 @@ select:focus {
   padding: 16px 18px;
 }
 
+/* --- Stepper --- */
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+.step {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  border: none;
+  background: transparent;
+  padding: 6px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+  color: var(--ink-faint);
+  font-weight: 700;
+  font-size: 13px;
+}
+.step__num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #e7e8ec;
+  color: var(--ink-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+.step--active {
+  color: var(--brand);
+}
+.step--active .step__num {
+  background: var(--brand);
+  color: #fff;
+}
+.step--locked {
+  opacity: 0.5;
+  cursor: default;
+}
+.step__sep {
+  flex: 1;
+  height: 2px;
+  background: #e7e8ec;
+  border-radius: 2px;
+}
+
+/* --- Step helpers --- */
+.or-divider {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: 13px;
+  margin: 16px 0;
+}
+.or-divider::before,
+.or-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.or-divider span {
+  padding: 0 12px;
+}
+.btn-secondary {
+  width: 100%;
+  padding: 13px;
+  border: 1.5px solid var(--brand);
+  border-radius: 12px;
+  background: var(--brand-tint);
+  color: var(--brand-dark);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.link-btn {
+  display: block;
+  margin: 14px auto 0;
+  border: none;
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.step3-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.chip-btn {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.chip-btn--warn {
+  color: var(--hard);
+  border-color: #fecaca;
+}
+
 /* --- Coach chat --- */
 .coach {
   background: var(--card);

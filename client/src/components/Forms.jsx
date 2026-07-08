@@ -59,23 +59,23 @@ function Segmented({ value, onChange, options }) {
   );
 }
 
-export function ProfileForm({ profile, onSaved }) {
+export function ProfileForm({ profile, onSaved, submitLabel = "Save profile" }) {
   const [goal, setGoal] = useState(profile?.goal || "maintain");
   const [diet, setDiet] = useState(profile?.diet || "veg");
   const [cuisine, setCuisine] = useState(profile?.cuisine || "both");
   const [effort, setEffort] = useState(profile?.effort || "20");
   const [weightKg, setWeightKg] = useState(profile?.weightKg || 70);
-  const [saving, setSaving] = useState(false);
 
-  async function submit(e) {
+  function submit(e) {
     e.preventDefault();
-    setSaving(true);
-    try {
-      const res = await api.saveProfile({ goal, diet, cuisine, effort, weightKg });
-      onSaved(res.profile);
-    } finally {
-      setSaving(false);
-    }
+    // Profile is client-side state (localStorage) — no server round-trip.
+    onSaved({
+      goal,
+      diet,
+      cuisine,
+      effort,
+      weightKg: Number(weightKg) > 0 ? Number(weightKg) : 70,
+    });
   }
 
   return (
@@ -101,14 +101,14 @@ export function ProfileForm({ profile, onSaved }) {
           onChange={(e) => setWeightKg(e.target.value)}
         />
       </Field>
-      <button className="btn-primary" type="submit" disabled={saving}>
-        {saving ? "Saving…" : "Save profile"}
+      <button className="btn-primary" type="submit">
+        {submitLabel}
       </button>
     </form>
   );
 }
 
-export function ActivityForm({ onLogged }) {
+export function ActivityForm({ profile, onLogged, submitLabel = "Log activity" }) {
   const [type, setType] = useState("run");
   const [distanceKm, setDistanceKm] = useState(5);
   const [durationMin, setDurationMin] = useState(30);
@@ -120,7 +120,8 @@ export function ActivityForm({ onLogged }) {
     e.preventDefault();
     setSaving(true);
     try {
-      const res = await api.addActivity({ type, distanceKm, durationMin, feel });
+      // Stateless: server computes the summary; client stores it.
+      const res = await api.activitySummary({ type, distanceKm, durationMin, feel }, profile);
       onLogged(res.activity);
     } finally {
       setSaving(false);
@@ -159,7 +160,7 @@ export function ActivityForm({ onLogged }) {
         </>
       )}
       <button className="btn-primary" type="submit" disabled={saving}>
-        {saving ? "Logging…" : "Log activity"}
+        {saving ? "Logging…" : submitLabel}
       </button>
     </form>
   );
