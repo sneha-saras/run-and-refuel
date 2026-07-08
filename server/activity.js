@@ -6,8 +6,19 @@
 const MET_TABLE = {
   run: { easy: 8.3, moderate: 10.0, hard: 12.3 },
   walk: { easy: 2.8, moderate: 3.8, hard: 5.0 },
+  cycle: { easy: 6.0, moderate: 8.0, hard: 10.0 },
+  swim: { easy: 6.0, moderate: 8.3, hard: 10.0 },
+  gym: { easy: 3.5, moderate: 5.0, hard: 6.0 }, // strength training
+  hiit: { easy: 6.0, moderate: 8.0, hard: 10.0 },
+  yoga: { easy: 2.5, moderate: 3.0, hard: 4.0 },
+  sports: { easy: 6.0, moderate: 7.5, hard: 10.0 },
   rest: { easy: 0, moderate: 0, hard: 0 },
 };
+
+const ACTIVITY_TYPES = Object.keys(MET_TABLE);
+
+// Which types are distance-based (a distance makes sense). Others use duration.
+const DISTANCE_TYPES = ["run", "walk", "cycle", "swim"];
 
 const DEFAULT_WEIGHT_KG = 70;
 
@@ -20,7 +31,7 @@ function estimateCalories({ type, feel, durationMin, weightKg }) {
 }
 
 // Intensity badge. Rest days are always "Rest". Otherwise driven by how it
-// felt, but a fast pace can bump an "easy"-feeling run up a notch.
+// felt, but a fast running pace can bump an "easy"-feeling run up a notch.
 function deriveIntensity({ type, feel, distanceKm, durationMin }) {
   if (type === "rest") return "Rest";
 
@@ -52,11 +63,13 @@ function daysSinceLast(previousDates, currentDateISO) {
 
 // Build a full activity record from raw form input + profile + existing log.
 function buildActivitySummary(input, profile, existingLog) {
-  const type = ["run", "walk", "rest"].includes(input.type) ? input.type : "run";
+  const type = ACTIVITY_TYPES.includes(input.type) ? input.type : "run";
   const feel = ["easy", "moderate", "hard"].includes(input.feel)
     ? input.feel
     : "moderate";
-  const distanceKm = type === "rest" ? 0 : Number(input.distanceKm) || 0;
+  // Distance only applies to distance-based types; others are duration-driven.
+  const distanceKm =
+    type === "rest" || !DISTANCE_TYPES.includes(type) ? 0 : Number(input.distanceKm) || 0;
   const durationMin = type === "rest" ? 0 : Number(input.durationMin) || 0;
   const weightKg = profile && profile.weightKg ? profile.weightKg : DEFAULT_WEIGHT_KG;
   const date = input.date || new Date().toISOString();
@@ -81,6 +94,8 @@ function buildActivitySummary(input, profile, existingLog) {
 
 module.exports = {
   MET_TABLE,
+  ACTIVITY_TYPES,
+  DISTANCE_TYPES,
   DEFAULT_WEIGHT_KG,
   estimateCalories,
   deriveIntensity,

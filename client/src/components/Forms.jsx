@@ -24,8 +24,16 @@ const EFFORTS = [
 const ACTIVITY_TYPES = [
   { value: "run", label: "Run" },
   { value: "walk", label: "Walk" },
+  { value: "cycle", label: "Cycle" },
+  { value: "swim", label: "Swim" },
+  { value: "gym", label: "Gym / Strength" },
+  { value: "hiit", label: "HIIT" },
+  { value: "yoga", label: "Yoga / Pilates" },
+  { value: "sports", label: "Sports" },
   { value: "rest", label: "Rest day" },
 ];
+// Types where a distance makes sense; others are duration-driven.
+const DISTANCE_TYPES = ["run", "walk", "cycle", "swim"];
 const FEELS = [
   { value: "easy", label: "Easy" },
   { value: "moderate", label: "Moderate" },
@@ -56,6 +64,19 @@ function Segmented({ value, onChange, options }) {
         </button>
       ))}
     </div>
+  );
+}
+
+// Dropdown — better than pills when there are many options (activity types).
+function Select({ value, onChange, options }) {
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)}>
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
   );
 }
 
@@ -115,13 +136,20 @@ export function ActivityForm({ profile, onLogged, submitLabel = "Log activity" }
   const [feel, setFeel] = useState("moderate");
   const [saving, setSaving] = useState(false);
   const isRest = type === "rest";
+  const showDistance = DISTANCE_TYPES.includes(type);
 
   async function submit(e) {
     e.preventDefault();
     setSaving(true);
     try {
-      // Stateless: server computes the summary; client stores it.
-      const res = await api.activitySummary({ type, distanceKm, durationMin, feel }, profile);
+      // Only send distance for distance-based types.
+      const input = {
+        type,
+        durationMin,
+        feel,
+        ...(showDistance ? { distanceKm } : {}),
+      };
+      const res = await api.activitySummary(input, profile);
       onLogged(res.activity);
     } finally {
       setSaving(false);
@@ -131,20 +159,22 @@ export function ActivityForm({ profile, onLogged, submitLabel = "Log activity" }
   return (
     <form className="form" onSubmit={submit}>
       <Field label="Activity type">
-        <Segmented value={type} onChange={setType} options={ACTIVITY_TYPES} />
+        <Select value={type} onChange={setType} options={ACTIVITY_TYPES} />
       </Field>
       {!isRest && (
         <>
           <div className="field-row">
-            <Field label="Distance (km)">
-              <input
-                type="number"
-                min="0"
-                step="0.1"
-                value={distanceKm}
-                onChange={(e) => setDistanceKm(e.target.value)}
-              />
-            </Field>
+            {showDistance && (
+              <Field label="Distance (km)">
+                <input
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  value={distanceKm}
+                  onChange={(e) => setDistanceKm(e.target.value)}
+                />
+              </Field>
+            )}
             <Field label="Duration (min)">
               <input
                 type="number"

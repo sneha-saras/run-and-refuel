@@ -1,6 +1,16 @@
 import React from "react";
 
-const TYPE_LABELS = { run: "Run", walk: "Walk", rest: "Rest day" };
+const TYPE_LABELS = {
+  run: "Run",
+  walk: "Walk",
+  cycle: "Cycle",
+  swim: "Swim",
+  gym: "Strength",
+  hiit: "HIIT",
+  yoga: "Yoga",
+  sports: "Sports",
+  rest: "Rest day",
+};
 
 // Intensity -> badge color class (see styles.css .badge--*)
 const INTENSITY_CLASS = {
@@ -41,10 +51,12 @@ export default function ActivityCard({ activity }) {
       <div className="activity-card__stats">
         {!isRest && (
           <>
-            <div className="astat">
-              <span className="astat__value">{distanceKm}</span>
-              <span className="astat__unit">km</span>
-            </div>
+            {distanceKm > 0 && (
+              <div className="astat">
+                <span className="astat__value">{distanceKm}</span>
+                <span className="astat__unit">km</span>
+              </div>
+            )}
             <div className="astat">
               <span className="astat__value">{durationMin}</span>
               <span className="astat__unit">min</span>
