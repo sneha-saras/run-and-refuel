@@ -1,7 +1,11 @@
 const fs = require("fs");
 const path = require("path");
 
-const DATA_FILE = path.join(__dirname, "data.json");
+// On Vercel the project filesystem is read-only; /tmp is the only writable
+// location (ephemeral — resets on cold starts). Locally we use the repo copy.
+const DATA_FILE = process.env.VERCEL
+  ? path.join("/tmp", "data.json")
+  : path.join(__dirname, "data.json");
 
 const EMPTY_DB = {
   profile: null, // { goal, diet, cuisine, effort, weightKg }

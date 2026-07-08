@@ -162,8 +162,10 @@ app.post("/api/strava/disconnect", (req, res) => {
   res.json({ ok: true });
 });
 
-// --- Static serve (production, Phase 5) ---
-if (process.env.NODE_ENV === "production") {
+// --- Static serve (production single-process, e.g. local `npm run serve`) ---
+// On Vercel the frontend is served by Vercel's static hosting, not Express,
+// so we skip this there (VERCEL is set automatically in that environment).
+if (process.env.NODE_ENV === "production" && !process.env.VERCEL) {
   const clientDist = path.join(__dirname, "..", "client", "dist");
   app.use(express.static(clientDist));
   app.get("*", (req, res) => {
@@ -171,6 +173,12 @@ if (process.env.NODE_ENV === "production") {
   });
 }
 
-app.listen(PORT, () => {
-  console.log(`[Run & Refuel] server listening on http://localhost:${PORT}`);
-});
+// Start a long-running server only when NOT on Vercel (serverless invokes the
+// exported app per-request instead of calling listen()).
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`[Run & Refuel] server listening on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;

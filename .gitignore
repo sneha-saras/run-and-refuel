@@ -6,3 +6,4 @@ server/data.json
 client/.env
 .DS_Store
 *.log
+.vercel
