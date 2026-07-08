@@ -1,8 +1,18 @@
 # Run & Refuel 🏃
 
-Takes your running activity + fitness goal and suggests Indian home-cooked meals matched to today's effort, with each ingredient deep-linked to quick-commerce apps (Zepto / Blinkit / Instamart).
+Takes your running activity + fitness goal and suggests Indian home-cooked meals matched to today's effort, with each ingredient deep-linked to quick-commerce apps (Zepto / Blinkit / Instamart). Then chat with an AI coach (type or **voice**) to adjust the suggestions in real time.
 
-**Stack:** Node.js + Express (backend) · React + Vite (frontend) · single JSON file for storage (no DB).
+**🔗 Live demo:** https://run-and-refuel.vercel.app
+
+**Stack:** Node.js + Express (backend) · React + Vite (frontend) · Groq LLM for meal/coach generation · per-visitor state in the browser (no DB).
+
+## The flow (3 steps)
+
+1. **Profile** — goal, diet, cuisine comfort, cooking-effort tolerance, body weight. (Or click **Try with sample data** to see it instantly.)
+2. **Activity** — connect Strava to pull your latest run, *or* enter it manually.
+3. **Refuel** — 3 meal suggestions (or quick snacks) matched to today's activity, each with a "why this today" line, macros, and store-grouped ingredient links; plus the coach chat.
+
+Profile + activity are stored **per-visitor in the browser** (localStorage), so anyone opening the live link gets their own clean, consistent flow. The backend is stateless for meal/coach generation.
 
 ---
 
@@ -71,11 +81,22 @@ The `gateway-buildathon.ltl.sh` gateway is behind Akamai and **allowlists a corp
 
 ## Data storage
 
-All state lives in `server/data.json` (git-ignored): your profile, activity log, and Strava tokens. Delete it to reset.
+- **Profile + activity:** stored per-visitor in the **browser** (localStorage). Each visitor's flow is isolated and consistent.
+- **Strava connection:** treated as "connected" only in the browser that completed OAuth (browser-scoped flag) — a fresh visitor always sees "not connected."
+- **Local dev fallback:** the legacy server-side `server/data.json` (git-ignored) is still used by the local-only stored endpoints.
+
+## Deployment (Vercel)
+
+Deployed as a single Vercel project (see `vercel.json`):
+- Frontend built to `client/dist` and served as static files.
+- The Express app runs as a serverless function (`api/index.js`); `/api/*` and `/callback` route to it.
+- Set the env vars above in the Vercel dashboard. Serverless has an **ephemeral filesystem**, which is why profile/activity live client-side.
+- **Strava on the live domain:** the OAuth `redirect_uri` is derived from the request host automatically, so it works on any domain. Set the Strava app's **Authorization Callback Domain** to your deploy domain (e.g. `run-and-refuel.vercel.app`).
 
 ## Features by area
 
-- **Onboarding** — goal, diet, cuisine, cooking-effort tolerance, body weight (for calorie math).
+- **3-step flow** — profile → activity → refuel, gated so meals appear only after profile + activity exist. "Try with sample data" for an instant demo.
 - **Activity** — manual entry (run/walk/rest) **or** Strava sync; MET-based calorie estimate + intensity badge + days-since-last.
-- **Meals** — 3 suggestions matched to today's activity + meal time, each with a "why this today" line, macros, and quick-commerce ingredient links.
-- **Strava** — OAuth2 connect, 7-day fetch, latest activity mapped into the same summary format; manual entry remains as a fallback.
+- **Meals** — 3 suggestions matched to today's activity + meal time, each with a "why this today" line, macros, and store-grouped quick-commerce ingredient links; plus a **quick-snacks** category.
+- **Coach chat** — adjust suggestions in natural language (type or **voice** via Web Speech API); remembers the conversation; updates the cards live.
+- **Strava** — OAuth2 connect, 7-day fetch, latest activity mapped into the same summary format; manual entry always available as a fallback.

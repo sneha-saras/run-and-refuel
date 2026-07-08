@@ -44,15 +44,12 @@ export default function StravaConnect({ status, profile, onSynced, onStatusChang
     }
   }
 
-  async function disconnect() {
-    setBusy(true);
-    try {
-      await api.disconnectStrava();
-      onStatusChange({ ...status, connected: false, athlete: null });
-      setNote("Disconnected from Strava.");
-    } finally {
-      setBusy(false);
-    }
+  function disconnect() {
+    // Browser-scoped: make THIS browser forget Strava. We don't clear the
+    // shared server tokens (that would affect other visitors); this browser
+    // simply reverts to "not connected" and can reconnect anytime.
+    onStatusChange({ ...status, connected: false, athlete: null });
+    setNote("Disconnected from Strava.");
   }
 
   return (

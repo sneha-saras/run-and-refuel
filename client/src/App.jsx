@@ -6,6 +6,8 @@ import {
   saveProfile,
   saveActivity,
   clearAll,
+  loadStravaConnected,
+  setStravaConnected,
   SAMPLE_PROFILE,
   SAMPLE_ACTIVITY,
 } from "./lib/store";
@@ -100,7 +102,19 @@ export default function App() {
   // Mount: Strava status, OAuth return handling, and initial meal load.
   useEffect(() => {
     (async () => {
-      api.getStravaStatus().then(setStravaStatus).catch(() => {});
+      // Show the connect button based on server config, but treat "connected"
+      // as true ONLY if THIS browser did the OAuth (browser-scoped flag).
+      api
+        .getStravaStatus()
+        .then((s) => {
+          const mine = loadStravaConnected();
+          setStravaStatus({
+            configured: !!s.configured,
+            connected: mine,
+            athlete: mine ? s.athlete || null : null,
+          });
+        })
+        .catch(() => setStravaStatus({ configured: false, connected: false, athlete: null }));
 
       const params = new URLSearchParams(window.location.search);
       const sres = params.get("strava");
@@ -110,6 +124,8 @@ export default function App() {
           const p = loadProfile();
           try {
             const r = await api.syncStrava(p);
+            setStravaConnected(true); // this browser connected
+            setStravaStatus((prev) => ({ ...(prev || { configured: true }), connected: true }));
             if (r.activity) {
               setActivity(r.activity);
               setStep(3);
@@ -181,6 +197,13 @@ export default function App() {
     loadMeals(mealTime, category, SAMPLE_PROFILE, SAMPLE_ACTIVITY);
   }
 
+  // Disconnecting just makes THIS browser forget Strava (doesn't touch other
+  // visitors' access — server tokens are ephemeral and gated by this flag).
+  function onStravaStatusChange(s) {
+    setStravaConnected(!!s.connected);
+    setStravaStatus(s);
+  }
+
   function startOver() {
     clearAll();
     setProfileState(null);
@@ -188,6 +211,7 @@ export default function App() {
     setMeals([]);
     setMealSource(null);
     setBanner(null);
+    setStravaStatus((prev) => ({ ...(prev || {}), connected: false, athlete: null }));
     setStep(1);
   }
 
@@ -237,7 +261,7 @@ export default function App() {
             status={stravaStatus}
             profile={profile}
             onSynced={onActivitySet}
-            onStatusChange={setStravaStatus}
+            onStatusChange={onStravaStatusChange}
           />
 
           <div className="or-divider"><span>or enter manually</span></div>

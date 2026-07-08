@@ -4,6 +4,7 @@
 
 const PROFILE_KEY = "rr_profile";
 const ACTIVITY_KEY = "rr_activity";
+const STRAVA_KEY = "rr_strava_connected";
 
 function read(key) {
   try {
@@ -25,6 +26,15 @@ export function saveActivity(a) {
 export function clearAll() {
   localStorage.removeItem(PROFILE_KEY);
   localStorage.removeItem(ACTIVITY_KEY);
+  localStorage.removeItem(STRAVA_KEY);
+}
+
+// Strava "connected" is scoped to THIS browser — a visitor is only "connected"
+// if they themselves completed OAuth here, regardless of shared server tokens.
+export const loadStravaConnected = () => localStorage.getItem(STRAVA_KEY) === "1";
+export function setStravaConnected(v) {
+  if (v) localStorage.setItem(STRAVA_KEY, "1");
+  else localStorage.removeItem(STRAVA_KEY);
 }
 
 // One-click demo so a judge can see the full experience instantly.
