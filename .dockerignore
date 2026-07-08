@@ -1,0 +1,13 @@
+node_modules
+client/node_modules
+client/dist
+.env
+client/.env
+.git
+.gitignore
+*.log
+scratch_*
+server/data.json
+Dockerfile
+.dockerignore
+README.md

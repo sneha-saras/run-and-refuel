@@ -1,0 +1,684 @@
+/* Run & Refuel — Phase 3 UI. Energetic fitness feel, mobile-first, no UI library. */
+
+:root {
+  --ink: #17171a;
+  --ink-soft: #55555e;
+  --ink-faint: #8a8a93;
+  --line: #e7e8ec;
+  --bg: #f5f6f8;
+  --card: #ffffff;
+
+  --brand: #ff5a1f; /* energetic orange */
+  --brand-dark: #e5490f;
+  --brand-tint: #fff1ea;
+
+  --cal: #ff6b35; /* calories */
+  --protein: #16a34a; /* protein */
+  --effort: #2563eb; /* time/effort */
+
+  --easy: #16a34a;
+  --moderate: #f59e0b;
+  --hard: #ef4444;
+  --rest: #64748b;
+
+  --radius: 16px;
+  --shadow: 0 2px 10px rgba(20, 20, 30, 0.06);
+  --shadow-lg: 0 8px 28px rgba(255, 90, 31, 0.18);
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+.app {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 18px 16px 48px;
+}
+
+/* --- Header --- */
+.app-header {
+  margin-bottom: 18px;
+}
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.logo__mark {
+  font-size: 34px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 4px rgba(255, 90, 31, 0.35));
+}
+.app-header h1 {
+  margin: 0;
+  font-size: 26px;
+  letter-spacing: -0.5px;
+}
+.tagline {
+  margin: 2px 0 0;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+/* --- Section titles --- */
+.section-title {
+  font-size: 19px;
+  margin: 0;
+}
+.section-sub {
+  color: var(--ink-soft);
+  font-size: 14px;
+  margin: 4px 0 14px;
+}
+.card-title {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+/* --- Generic card --- */
+.card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: var(--shadow);
+}
+.empty-state {
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+.loading {
+  color: var(--ink-soft);
+  text-align: center;
+  padding: 24px 0;
+}
+
+/* --- Activity card (hero) --- */
+.activity-card {
+  background: linear-gradient(135deg, #ff6b35 0%, #ff5a1f 55%, #ff3d81 130%);
+  color: #fff;
+  border-radius: 20px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-lg);
+}
+.activity-card__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.activity-card__eyebrow {
+  margin: 0;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  opacity: 0.85;
+}
+.activity-card__title {
+  margin: 2px 0 0;
+  font-size: 24px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.strava-chip {
+  font-size: 11px;
+  background: rgba(255, 255, 255, 0.25);
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.activity-card__stats {
+  display: flex;
+  gap: 22px;
+  margin: 18px 0 12px;
+  flex-wrap: wrap;
+}
+.astat {
+  display: flex;
+  flex-direction: column;
+}
+.astat__value {
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1;
+}
+.astat__unit {
+  font-size: 12px;
+  opacity: 0.9;
+  margin-top: 4px;
+}
+.astat--calories .astat__value {
+  color: #fff8f2;
+}
+.activity-card__meta {
+  margin: 0;
+  font-size: 13px;
+  opacity: 0.9;
+}
+
+/* Intensity badge */
+.badge {
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--ink);
+}
+.badge--easy {
+  background: #dcfce7;
+  color: #166534;
+}
+.badge--moderate {
+  background: #fef3c7;
+  color: #92400e;
+}
+.badge--hard {
+  background: #fee2e2;
+  color: #991b1b;
+}
+.badge--rest {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+/* --- Meals section --- */
+.meals-section {
+  margin-bottom: 20px;
+}
+.meals-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.category-tabs {
+  display: flex;
+  gap: 8px;
+}
+.category-tab {
+  flex: 1;
+  border: 1.5px solid var(--line);
+  background: #fff;
+  padding: 10px 0;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.category-tab.is-active {
+  border-color: var(--brand);
+  color: var(--brand);
+  background: var(--brand-tint);
+}
+.mealtime-tabs {
+  display: flex;
+  gap: 6px;
+  background: #ececf0;
+  padding: 4px;
+  border-radius: 12px;
+}
+.mealtime-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 8px 0;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.mealtime-tab.is-active {
+  background: #fff;
+  color: var(--brand);
+  box-shadow: var(--shadow);
+}
+.source-note {
+  font-size: 12px;
+  color: var(--ink-faint);
+  margin: 0 0 10px;
+}
+.error-note {
+  font-size: 13px;
+  color: var(--hard);
+  margin: 0 0 10px;
+}
+
+/* --- Meal card --- */
+.meal-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.meal-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 18px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--line);
+}
+.meal-card__name {
+  margin: 0 0 6px;
+  font-size: 18px;
+}
+.meal-card__why {
+  margin: 0 0 14px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--brand-dark);
+  background: var(--brand-tint);
+  padding: 10px 12px;
+  border-radius: 10px;
+  line-height: 1.4;
+}
+.meal-card__badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.mbadge {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 10px;
+  border-radius: 999px;
+}
+.mbadge--cal {
+  background: #fff1eb;
+  color: var(--cal);
+}
+.mbadge--protein {
+  background: #e7f7ee;
+  color: var(--protein);
+}
+.mbadge--effort {
+  background: #e8effd;
+  color: var(--effort);
+}
+
+.meal-card__toggle {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: #fafafb;
+  padding: 10px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+}
+.chevron {
+  transition: transform 0.15s ease;
+}
+.chevron--up {
+  transform: rotate(180deg);
+}
+
+/* Ingredients panel + view toggle */
+.ingredients-panel {
+  margin-top: 14px;
+}
+.view-toggle {
+  display: flex;
+  gap: 6px;
+  background: #f0f0f3;
+  padding: 4px;
+  border-radius: 10px;
+  margin-bottom: 14px;
+}
+.view-toggle__opt {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 8px 0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.view-toggle__opt.is-active {
+  background: #fff;
+  color: var(--brand);
+  box-shadow: var(--shadow);
+}
+
+/* Grouped-by-store view */
+.store-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.store-group {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  background: #fafafb;
+}
+.store-group__head {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.store-order-btn {
+  flex: 1;
+  text-align: center;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 9px 10px;
+  border-radius: 9px;
+}
+.copy-btn {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 9px 12px;
+  border-radius: 9px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.store-group__items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ing-chip {
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  background: #fff;
+  border: 1px solid var(--line);
+  padding: 6px 10px;
+  border-radius: 999px;
+  transition: transform 0.08s ease;
+}
+.ing-chip:active {
+  transform: scale(0.96);
+}
+
+/* Ingredients (per-ingredient fallback) */
+.ingredient-list {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.ingredient {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+.ingredient__name {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+  gap: 10px;
+}
+.ingredient__item {
+  font-size: 15px;
+  font-weight: 600;
+}
+.ingredient__qty {
+  font-size: 13px;
+  color: var(--ink-faint);
+  white-space: nowrap;
+}
+.ingredient__buy {
+  display: flex;
+  gap: 8px;
+}
+.buy-btn {
+  flex: 1;
+  text-align: center;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 4px;
+  border-radius: 9px;
+  transition: transform 0.08s ease, opacity 0.15s ease;
+}
+.buy-btn:active {
+  transform: scale(0.96);
+  opacity: 0.9;
+}
+
+/* --- Forms --- */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.field {
+  display: block;
+}
+.field-label {
+  display: block;
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin-bottom: 6px;
+  font-weight: 600;
+}
+.field-row {
+  display: flex;
+  gap: 12px;
+}
+.field-row .field {
+  flex: 1;
+}
+input,
+select {
+  width: 100%;
+  padding: 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  font-size: 15px;
+  background: #fff;
+  color: var(--ink);
+}
+input:focus,
+select:focus {
+  outline: none;
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-tint);
+}
+
+.segmented {
+  display: flex;
+  gap: 6px;
+  background: #f0f0f3;
+  padding: 4px;
+  border-radius: 12px;
+}
+.segmented__opt {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 9px 4px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.segmented__opt.is-active {
+  background: #fff;
+  color: var(--brand);
+  box-shadow: var(--shadow);
+}
+
+.btn-primary {
+  width: 100%;
+  padding: 13px;
+  border: none;
+  border-radius: 12px;
+  background: var(--brand);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.btn-primary:hover {
+  background: var(--brand-dark);
+}
+.btn-primary:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* --- Collapsible --- */
+.collapsible {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  margin-bottom: 14px;
+  overflow: hidden;
+}
+.collapsible__summary {
+  list-style: none;
+  padding: 16px 18px;
+  font-weight: 700;
+  font-size: 15px;
+  cursor: pointer;
+  user-select: none;
+}
+.collapsible__summary::-webkit-details-marker {
+  display: none;
+}
+.collapsible[open] .collapsible__summary {
+  border-bottom: 1px solid var(--line);
+}
+.collapsible__body {
+  padding: 16px 18px;
+}
+
+/* --- Banner --- */
+.banner {
+  background: #e7f7ee;
+  color: #166534;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+/* --- Strava box --- */
+.strava-box {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  margin-bottom: 14px;
+  box-shadow: var(--shadow);
+  border: 1px solid var(--line);
+}
+.strava-box--muted {
+  background: #fafafb;
+}
+.strava-box__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.strava-logo {
+  font-weight: 800;
+  color: #fc4c02; /* Strava orange */
+  letter-spacing: 0.3px;
+}
+.strava-status {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-faint);
+  background: #f0f0f3;
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+.strava-status.is-on {
+  color: #166534;
+  background: #dcfce7;
+}
+.strava-hint {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 0;
+  line-height: 1.5;
+}
+.strava-hint code {
+  background: #ececef;
+  padding: 1px 5px;
+  border-radius: 5px;
+  font-size: 12px;
+}
+.strava-actions {
+  display: flex;
+  gap: 8px;
+}
+.btn-strava {
+  flex: 1;
+  border: none;
+  background: #fc4c02;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 12px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.btn-strava:hover {
+  background: #e04402;
+}
+.btn-strava:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.btn-ghost {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink-soft);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 12px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.strava-note {
+  font-size: 13px;
+  color: var(--ink-soft);
+  margin: 10px 0 0;
+}
+
+/* --- Footer --- */
+.app-footer {
+  text-align: center;
+  color: var(--ink-faint);
+  font-size: 12px;
+  margin-top: 24px;
+}
