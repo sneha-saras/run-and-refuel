@@ -67,6 +67,19 @@ function Segmented({ value, onChange, options }) {
   );
 }
 
+// Dropdown — better than pills when there are many options (activity types).
+function Select({ value, onChange, options }) {
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value)}>
+      {options.map((o) => (
+        <option key={o.value} value={o.value}>
+          {o.label}
+        </option>
+      ))}
+    </select>
+  );
+}
+
 export function ProfileForm({ profile, onSaved, submitLabel = "Save profile" }) {
   const [goal, setGoal] = useState(profile?.goal || "maintain");
   const [diet, setDiet] = useState(profile?.diet || "veg");
