@@ -121,13 +121,13 @@ app.get("/api/strava/authorize", (req, res) => {
       .status(400)
       .json({ error: "Strava not configured. Set STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET." });
   }
-  res.redirect(strava.getAuthorizeUrl());
+  res.redirect(strava.getAuthorizeUrl(req));
 });
 
 // OAuth callback: Strava redirects here with ?code=... (or ?error=...).
 app.get("/callback", async (req, res) => {
   const { code, error } = req.query;
-  const back = strava.clientUrl();
+  const back = strava.clientUrl(req);
   if (error || !code) {
     return res.redirect(`${back}?strava=denied`);
   }

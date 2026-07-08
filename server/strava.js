@@ -13,20 +13,38 @@ function isConfigured() {
   return !!(process.env.STRAVA_CLIENT_ID && process.env.STRAVA_CLIENT_SECRET);
 }
 
-function redirectUri() {
-  return process.env.STRAVA_REDIRECT_URI || "http://localhost:3000/callback";
+// Derive the site's base URL (scheme://host) from the incoming request, so
+// OAuth works on whatever domain the app is actually served from (localhost,
+// *.vercel.app, custom domain) without relying on env vars. Honors proxy
+// headers set by Vercel/hosts.
+function baseUrlFromReq(req) {
+  if (!req || !req.headers) return null;
+  const proto = (req.headers["x-forwarded-proto"] || "").split(",")[0].trim() ||
+    (req.secure ? "https" : "http");
+  const host = req.headers["x-forwarded-host"] || req.headers.host;
+  return host ? `${proto}://${host}` : null;
+}
+
+// redirect_uri for the OAuth handshake. Priority: explicit env var override >
+// the actual request domain > localhost dev default.
+function redirectUri(req) {
+  if (process.env.STRAVA_REDIRECT_URI) return process.env.STRAVA_REDIRECT_URI;
+  const base = baseUrlFromReq(req);
+  return base ? `${base}/callback` : "http://localhost:3000/callback";
 }
 
 // Where to send the browser after the OAuth dance finishes.
-function clientUrl() {
+function clientUrl(req) {
   if (process.env.CLIENT_URL) return process.env.CLIENT_URL;
+  const base = baseUrlFromReq(req);
+  if (base) return base;
   return process.env.NODE_ENV === "production" ? "/" : "http://localhost:5173";
 }
 
-function getAuthorizeUrl() {
+function getAuthorizeUrl(req) {
   const params = new URLSearchParams({
     client_id: process.env.STRAVA_CLIENT_ID,
-    redirect_uri: redirectUri(),
+    redirect_uri: redirectUri(req),
     response_type: "code",
     approval_prompt: "auto",
     scope: "activity:read_all",
