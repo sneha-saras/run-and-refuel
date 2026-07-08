@@ -576,6 +576,9 @@ function fillActivityGaps(f) {
   const paceMinPerKm = f.type === "walk" ? 11 : 6; // ~6:00/km run, ~11:00/km walk
   if (!f.durationMin && f.distanceKm) f.durationMin = Math.round(f.distanceKm * paceMinPerKm);
   if (!f.distanceKm && f.durationMin) f.distanceKm = +(f.durationMin / paceMinPerKm).toFixed(1);
+  // Guard against mis-heard/mis-parsed values (e.g. "5k" -> 5000). Keep sane.
+  f.distanceKm = Math.min(Math.max(f.distanceKm, 0), 100);
+  f.durationMin = Math.min(Math.max(f.durationMin, 0), 600);
   return f;
 }
 

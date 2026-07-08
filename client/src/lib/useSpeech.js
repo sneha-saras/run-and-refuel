@@ -41,8 +41,10 @@ function errorMessage(code) {
 
 // Speech-to-text hook. start(onFinal) begins listening and calls onFinal(text)
 // once the user stops speaking. Exposes live interim transcript + errors.
-// How long a silence ends the turn. Continuous mode + this timer means a short
-// natural pause mid-sentence does NOT cut you off — only a longer silence does.
+// A real silence (no speech for this long) ends the turn. Because Chrome tends
+// to fire `onend` on its own after a short pause, we AUTO-RESTART recognition
+// while the user is still "active" and only finish on a genuine silence or when
+// the user taps stop. This is what stops mid-sentence pauses from cutting off.
 const SILENCE_MS = 2600;
 
 export function useSpeech() {
@@ -50,8 +52,11 @@ export function useSpeech() {
   const [interim, setInterim] = useState("");
   const [error, setError] = useState(null);
   const recRef = useRef(null);
-  const transcriptRef = useRef("");
+  const activeRef = useRef(false); // user wants to keep listening
+  const committedRef = useRef(""); // transcript accumulated across restarts
+  const sessionRef = useRef(""); // current recognition session's transcript
   const silenceRef = useRef(null);
+  const onFinalRef = useRef(null);
 
   function clearSilence() {
     if (silenceRef.current) {
@@ -59,23 +64,29 @@ export function useSpeech() {
       silenceRef.current = null;
     }
   }
+  function armSilence() {
+    clearSilence();
+    silenceRef.current = setTimeout(() => {
+      activeRef.current = false; // real silence -> we're done
+      try { if (recRef.current) recRef.current.stop(); } catch (e) {}
+    }, SILENCE_MS);
+  }
 
-  function start(onFinal) {
-    if (!SUPPORTS_STT || listening) return;
-    setError(null);
+  function finish() {
+    clearSilence();
+    const text = `${committedRef.current} ${sessionRef.current}`.trim();
+    committedRef.current = "";
+    sessionRef.current = "";
     setInterim("");
-    transcriptRef.current = "";
+    setListening(false);
+    if (text && onFinalRef.current) onFinalRef.current(text);
+  }
+
+  function buildRec() {
     const rec = new SR();
     rec.lang = "en-IN";
     rec.interimResults = true;
-    rec.continuous = true; // don't end on the first pause
-
-    const armSilence = () => {
-      clearSilence();
-      silenceRef.current = setTimeout(() => {
-        try { rec.stop(); } catch (e) {}
-      }, SILENCE_MS);
-    };
+    rec.continuous = true;
 
     rec.onstart = () => {
       setListening(true);
@@ -84,42 +95,62 @@ export function useSpeech() {
     rec.onresult = (e) => {
       let t = "";
       for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
-      transcriptRef.current = t;
-      setInterim(t);
-      armSilence(); // reset the silence countdown on every bit of speech
+      sessionRef.current = t;
+      setInterim(`${committedRef.current} ${t}`.trim());
+      armSilence(); // reset countdown on every bit of speech
     };
     rec.onerror = (e) => {
+      const code = e && e.error;
+      // "no-speech" before anything was said -> stop; otherwise keep listening.
+      if (code === "no-speech") {
+        if (!committedRef.current && !sessionRef.current) activeRef.current = false;
+        return;
+      }
       clearSilence();
-      setListening(false);
-      const msg = errorMessage(e && e.error);
+      activeRef.current = false;
+      const msg = errorMessage(code);
       if (msg) setError(msg);
+      setListening(false);
     };
     rec.onend = () => {
-      clearSilence();
-      setListening(false);
-      const finalText = transcriptRef.current.trim();
-      transcriptRef.current = "";
-      setInterim("");
-      if (finalText && onFinal) onFinal(finalText);
+      if (activeRef.current) {
+        // Chrome ended early — commit this chunk and restart to keep going.
+        committedRef.current = `${committedRef.current} ${sessionRef.current}`.trim();
+        sessionRef.current = "";
+        try { rec.start(); } catch (e) { finish(); }
+      } else {
+        finish();
+      }
     };
+    return rec;
+  }
 
+  function start(onFinal) {
+    if (!SUPPORTS_STT || listening) return;
+    setError(null);
+    setInterim("");
+    committedRef.current = "";
+    sessionRef.current = "";
+    onFinalRef.current = onFinal;
+    activeRef.current = true;
+    const rec = buildRec();
     recRef.current = rec;
     setListening(true);
     try {
       rec.start();
     } catch (err) {
-      clearSilence();
+      activeRef.current = false;
       setListening(false);
       setError(`Couldn't start the mic (${err.name}). Try again in a moment.`);
     }
   }
 
   function stop() {
+    activeRef.current = false; // user says done
     clearSilence();
     try {
       if (recRef.current) recRef.current.stop();
     } catch (e) {}
-    setListening(false);
   }
 
   return { listening, interim, error, start, stop };
