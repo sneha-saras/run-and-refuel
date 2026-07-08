@@ -138,12 +138,24 @@ async function fetchRecentActivities(days = 7) {
   return Array.isArray(list) ? list : [];
 }
 
-// Map a Strava activity onto the raw input shape Phase 1's summary builder expects.
+// Map a Strava activity type onto our categories (run/walk/cycle/swim/gym/
+// hiit/yoga/sports). Strava has ~50 sport_types; we match the common ones.
 function stravaTypeToLocal(stravaType) {
   const t = (stravaType || "").toLowerCase();
-  if (t.includes("walk")) return "walk";
-  if (t.includes("hike")) return "walk";
-  return "run"; // Run, and anything else, treated as a run for our meal logic
+  if (t.includes("ride") || t.includes("cycl") || t.includes("bike") || t.includes("velomobile")) return "cycle";
+  if (t.includes("swim")) return "swim";
+  if (t.includes("walk") || t.includes("hike")) return "walk";
+  if (t.includes("weight") || t.includes("crossfit") || t.includes("strength") || t === "workout") return "gym";
+  if (t.includes("yoga") || t.includes("pilates")) return "yoga";
+  if (t.includes("hiit") || t.includes("interval")) return "hiit";
+  if (
+    t.includes("soccer") || t.includes("football") || t.includes("cricket") ||
+    t.includes("badminton") || t.includes("tennis") || t.includes("basketball") ||
+    t.includes("squash") || t.includes("volleyball") || t.includes("hockey") ||
+    t.includes("pickleball") || t.includes("racquet")
+  ) return "sports";
+  if (t.includes("run")) return "run";
+  return "run"; // sensible default for anything unmapped
 }
 
 // Infer "how it felt" from pace (min/km) since Strava has no felt field.

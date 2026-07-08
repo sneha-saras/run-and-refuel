@@ -25,6 +25,42 @@ function labelCuisine(c) {
   return CUISINE_LABELS[c] || c || "North & South Indian";
 }
 
+// --- Activity type → human label + fuel category ---
+const ACTIVITY_LABELS = {
+  run: "run",
+  walk: "walk",
+  cycle: "cycle ride",
+  swim: "swim",
+  gym: "strength / gym session",
+  hiit: "HIIT session",
+  yoga: "yoga / pilates session",
+  sports: "sports session",
+  rest: "rest day",
+};
+function labelActivity(t) {
+  return ACTIVITY_LABELS[t] || t || "workout";
+}
+function fuelCategory(type) {
+  if (["run", "cycle", "swim", "walk"].includes(type)) return "endurance";
+  if (type === "gym") return "strength";
+  if (type === "hiit") return "hiit";
+  if (type === "yoga") return "low-burn";
+  if (type === "sports") return "sports";
+  if (type === "rest") return "rest";
+  return "endurance";
+}
+
+// Guidance the model uses to reason DIFFERENTLY per activity type.
+const ACTIVITY_GUIDANCE = [
+  "Adjust the nutrition to the ACTIVITY TYPE (do NOT treat everything like a run):",
+  "- Endurance (run, cycle, swim, long walk): prioritize carbohydrate replenishment + moderate protein.",
+  "- Strength / gym: prioritize protein for muscle repair (post-workout timing); keep carbs moderate/lower.",
+  "- HIIT: balance carbohydrates and protein.",
+  "- Low-burn (yoga, pilates, light/short activity): keep it light / maintenance. Be HONEST that little refueling is needed — do NOT invent large recovery calorie needs.",
+  "- Sports (football, cricket, badminton, etc.): treat by intensity/duration, generally endurance-like.",
+  "- 'why_this_today' MUST reflect the actual activity type — e.g. 'protein to rebuild muscle after your strength session' vs 'carbs to replenish after your run'.",
+];
+
 // Meal time from the clock (server local time), overridable for testing.
 function getMealTime(hour) {
   const h = hour != null ? hour : new Date().getHours();
@@ -48,6 +84,8 @@ function buildSystemPrompt(category = "meal") {
         "- Respect the diet (vegetarian / eggetarian / non-vegetarian) and cuisine comfort.",
         "- 'why_this_today' must be ONE short line that references the person's ACTUAL activity today and their goal.",
         "",
+        ...ACTIVITY_GUIDANCE,
+        "",
       ]
     : [
         "You are a sports nutritionist who specializes in everyday Indian home cooking.",
@@ -60,6 +98,8 @@ function buildSystemPrompt(category = "meal") {
         "- Respect the diet (vegetarian / eggetarian / non-vegetarian) and cuisine comfort.",
         "- Respect the cooking effort tolerance (max minutes) for each dish's effort_minutes.",
         "- 'why_this_today' must be ONE short line that references the person's ACTUAL activity today and their goal.",
+        "",
+        ...ACTIVITY_GUIDANCE,
         "",
       ];
   return [
@@ -83,10 +123,12 @@ function buildUserPrompt(profile, activity, mealTime, category = "meal") {
   const p = profile || {};
   const a = activity || {};
   const isSnack = category === "snack";
+  const type = a.type || "run";
+  const distPart = a.distanceKm ? `${a.distanceKm} km, ` : ""; // omit for non-distance types
   const activityLine =
-    a.type === "rest"
-      ? "Rest day (no run/walk today)."
-      : `${a.type || "run"} — ${a.distanceKm ?? 0} km in ${a.durationMin ?? 0} min, ` +
+    type === "rest"
+      ? "Rest day (no workout today)."
+      : `${labelActivity(type)} [fuel category: ${fuelCategory(type)}] — ${distPart}${a.durationMin ?? 0} min, ` +
         `felt ${a.feel || "moderate"}, ~${a.calories ?? 0} kcal burned, intensity ${a.intensity || "Moderate"}.`;
 
   return [
@@ -209,147 +251,68 @@ async function callLLM(profile, activity, mealTime, category = "meal") {
 }
 
 // --- Mock response (used when no API key, or as graceful fallback) ---
+// Type-aware so the fallback still reasons by activity: protein-forward for
+// strength, carb-rich for endurance, balanced for HIIT, light for low-burn.
 function mockMeals(profile, activity, mealTime) {
   const goal = labelGoal(profile?.goal);
   const a = activity || {};
-  const isRest = a.type === "rest";
+  const type = a.type || "run";
+  const cat = fuelCategory(type);
   const isHard = a.feel === "hard" || (a.distanceKm || 0) >= 10;
+  const bump = isHard && cat !== "low-burn" && cat !== "rest" ? 1.15 : 1; // scale up after hard efforts
+  const s = (n) => Math.round(n * bump);
+  const act = labelActivity(type);
 
-  // Reference the real activity in the "why" line.
-  const whyBase = isRest
-    ? `Rest day + goal to ${goal}: keeping it light and balanced.`
-    : `After your ${a.distanceKm || 0}km ${a.type || "run"} (${a.calories || 0} kcal, ${a.intensity || "Moderate"}), this supports your goal to ${goal}.`;
+  const why = {
+    strength: `Protein to help rebuild muscle after your ${act}.`,
+    endurance: `Carbs to replenish glycogen after your ${act}, with some protein.`,
+    hiit: `Balanced carbs and protein to recover from your ${act}.`,
+    "low-burn": `A light, balanced meal — little refueling needed after your ${act}.`,
+    sports: `Carbs and protein to recover from your ${act}.`,
+    rest: `Rest day + goal to ${goal}: keeping it light and balanced.`,
+  }[cat];
 
-  const byMealTime = {
-    breakfast: [
-      {
-        dish_name: "Moong Dal Chilla with Mint Chutney",
-        why_this_today: whyBase,
-        calories: isHard ? 420 : 330,
-        protein_grams: 22,
-        effort_minutes: 15,
-        ingredients: [
-          { item: "Yellow moong dal", quantity: "1 cup" },
-          { item: "Onion", quantity: "1 small" },
-          { item: "Green chilli", quantity: "1" },
-          { item: "Coriander leaves", quantity: "handful" },
-          { item: "Mint leaves", quantity: "1/2 cup" },
-        ],
-      },
-      {
-        dish_name: "Masala Oats Upma",
-        why_this_today: whyBase,
-        calories: isHard ? 400 : 300,
-        protein_grams: 14,
-        effort_minutes: 12,
-        ingredients: [
-          { item: "Rolled oats", quantity: "1 cup" },
-          { item: "Mixed vegetables", quantity: "1 cup" },
-          { item: "Mustard seeds", quantity: "1 tsp" },
-          { item: "Curry leaves", quantity: "6-8" },
-        ],
-      },
-      {
-        dish_name: "Paneer Bhurji with Multigrain Toast",
-        why_this_today: whyBase,
-        calories: isHard ? 480 : 360,
-        protein_grams: 26,
-        effort_minutes: 18,
-        ingredients: [
-          { item: "Paneer", quantity: "150 g" },
-          { item: "Onion", quantity: "1" },
-          { item: "Tomato", quantity: "1" },
-          { item: "Multigrain bread", quantity: "2 slices" },
-        ],
-      },
+  const SETS = {
+    // Protein-forward, carbs moderate.
+    strength: [
+      { dish_name: "Paneer Bhurji with 2 Rotis", calories: s(480), protein_grams: 30, effort_minutes: 18,
+        ingredients: [ { item: "Paneer", quantity: "200 g" }, { item: "Onion", quantity: "1" }, { item: "Tomato", quantity: "1" }, { item: "Whole wheat flour", quantity: "1.5 cups" } ] },
+      { dish_name: "Rajma with a Small Bowl of Rice", calories: s(450), protein_grams: 22, effort_minutes: 25,
+        ingredients: [ { item: "Rajma (kidney beans)", quantity: "1 cup" }, { item: "Onion", quantity: "2" }, { item: "Tomato", quantity: "2" }, { item: "Rice", quantity: "1/2 cup" } ] },
+      { dish_name: "Soya Chunk Curry with Roti", calories: s(430), protein_grams: 28, effort_minutes: 20,
+        ingredients: [ { item: "Soya chunks", quantity: "1 cup" }, { item: "Onion", quantity: "1" }, { item: "Tomato", quantity: "2" }, { item: "Whole wheat flour", quantity: "1.5 cups" } ] },
     ],
-    lunch: [
-      {
-        dish_name: "Rajma Chawal with Cucumber Salad",
-        why_this_today: whyBase,
-        calories: isHard ? 620 : 480,
-        protein_grams: 24,
-        effort_minutes: 25,
-        ingredients: [
-          { item: "Rajma (kidney beans)", quantity: "1 cup" },
-          { item: "Rice", quantity: "1 cup" },
-          { item: "Onion", quantity: "2" },
-          { item: "Tomato", quantity: "2" },
-          { item: "Cucumber", quantity: "1" },
-        ],
-      },
-      {
-        dish_name: "Sambar with Brown Rice",
-        why_this_today: whyBase,
-        calories: isHard ? 560 : 430,
-        protein_grams: 20,
-        effort_minutes: 30,
-        ingredients: [
-          { item: "Toor dal", quantity: "1 cup" },
-          { item: "Mixed vegetables", quantity: "2 cups" },
-          { item: "Sambar powder", quantity: "2 tbsp" },
-          { item: "Brown rice", quantity: "1 cup" },
-        ],
-      },
-      {
-        dish_name: "Chana Masala with Jeera Rice",
-        why_this_today: whyBase,
-        calories: isHard ? 600 : 460,
-        protein_grams: 22,
-        effort_minutes: 25,
-        ingredients: [
-          { item: "Chickpeas", quantity: "1 cup" },
-          { item: "Onion", quantity: "2" },
-          { item: "Tomato", quantity: "2" },
-          { item: "Cumin seeds", quantity: "1 tsp" },
-          { item: "Rice", quantity: "1 cup" },
-        ],
-      },
+    // Carb-rich for glycogen replenishment.
+    endurance: [
+      { dish_name: "Rajma Chawal with Cucumber Salad", calories: s(560), protein_grams: 20, effort_minutes: 25,
+        ingredients: [ { item: "Rajma (kidney beans)", quantity: "1 cup" }, { item: "Rice", quantity: "1 cup" }, { item: "Onion", quantity: "2" }, { item: "Cucumber", quantity: "1" } ] },
+      { dish_name: "Aloo Paratha with Curd", calories: s(540), protein_grams: 14, effort_minutes: 20,
+        ingredients: [ { item: "Potato", quantity: "3" }, { item: "Whole wheat flour", quantity: "2 cups" }, { item: "Curd", quantity: "1 cup" } ] },
+      { dish_name: "Idli Sambar", calories: s(500), protein_grams: 16, effort_minutes: 25,
+        ingredients: [ { item: "Idli batter", quantity: "2 cups" }, { item: "Toor dal", quantity: "1 cup" }, { item: "Mixed vegetables", quantity: "1.5 cups" }, { item: "Sambar powder", quantity: "2 tbsp" } ] },
     ],
-    dinner: [
-      {
-        dish_name: "Palak Paneer with Roti",
-        why_this_today: whyBase,
-        calories: isHard ? 560 : 420,
-        protein_grams: 24,
-        effort_minutes: 25,
-        ingredients: [
-          { item: "Spinach", quantity: "2 bunches" },
-          { item: "Paneer", quantity: "150 g" },
-          { item: "Whole wheat flour", quantity: "2 cups" },
-          { item: "Garlic", quantity: "4 cloves" },
-        ],
-      },
-      {
-        dish_name: "Dal Tadka with Roti and Salad",
-        why_this_today: whyBase,
-        calories: isRest ? 350 : 460,
-        protein_grams: 18,
-        effort_minutes: 20,
-        ingredients: [
-          { item: "Toor dal", quantity: "1 cup" },
-          { item: "Ghee", quantity: "1 tbsp" },
-          { item: "Garlic", quantity: "4 cloves" },
-          { item: "Whole wheat flour", quantity: "2 cups" },
-        ],
-      },
-      {
-        dish_name: "Vegetable Khichdi with Curd",
-        why_this_today: whyBase,
-        calories: isRest ? 330 : 440,
-        protein_grams: 16,
-        effort_minutes: 20,
-        ingredients: [
-          { item: "Rice", quantity: "3/4 cup" },
-          { item: "Moong dal", quantity: "1/2 cup" },
-          { item: "Mixed vegetables", quantity: "1 cup" },
-          { item: "Curd", quantity: "1 cup" },
-        ],
-      },
+    // Balanced carbs + protein.
+    hiit: [
+      { dish_name: "Chana Masala with Jeera Rice", calories: s(520), protein_grams: 22, effort_minutes: 25,
+        ingredients: [ { item: "Chickpeas", quantity: "1 cup" }, { item: "Onion", quantity: "2" }, { item: "Tomato", quantity: "2" }, { item: "Rice", quantity: "3/4 cup" } ] },
+      { dish_name: "Paneer Pulao with Raita", calories: s(520), protein_grams: 20, effort_minutes: 25,
+        ingredients: [ { item: "Paneer", quantity: "150 g" }, { item: "Rice", quantity: "1 cup" }, { item: "Mixed vegetables", quantity: "1 cup" }, { item: "Curd", quantity: "1 cup" } ] },
+      { dish_name: "Dal Khichdi with Curd", calories: s(470), protein_grams: 18, effort_minutes: 20,
+        ingredients: [ { item: "Rice", quantity: "3/4 cup" }, { item: "Moong dal", quantity: "1/2 cup" }, { item: "Curd", quantity: "1 cup" } ] },
+    ],
+    // Light / maintenance — deliberately modest.
+    "low-burn": [
+      { dish_name: "Moong Dal Soup with Side Salad", calories: 230, protein_grams: 12, effort_minutes: 15,
+        ingredients: [ { item: "Yellow moong dal", quantity: "1/2 cup" }, { item: "Carrot", quantity: "1" }, { item: "Cucumber", quantity: "1" }, { item: "Lemon", quantity: "1" } ] },
+      { dish_name: "Sprouts & Veg Salad", calories: 210, protein_grams: 12, effort_minutes: 8,
+        ingredients: [ { item: "Moong sprouts", quantity: "1 cup" }, { item: "Onion", quantity: "1" }, { item: "Tomato", quantity: "1" }, { item: "Lemon", quantity: "1" } ] },
+      { dish_name: "Vegetable Daliya", calories: 250, protein_grams: 11, effort_minutes: 15,
+        ingredients: [ { item: "Broken wheat (daliya)", quantity: "3/4 cup" }, { item: "Mixed vegetables", quantity: "1 cup" }, { item: "Cumin seeds", quantity: "1 tsp" } ] },
     ],
   };
 
-  return byMealTime[mealTime] || byMealTime.lunch;
+  const set = SETS[cat] || (cat === "sports" ? SETS.endurance : cat === "rest" ? SETS["low-burn"] : SETS.endurance);
+  return set.map((m) => ({ ...m, why_this_today: why }));
 }
 
 // --- Mock snacks (light, quick, post-activity) ---
@@ -359,7 +322,7 @@ function mockSnacks(profile, activity) {
   const isRest = a.type === "rest";
   const whyBase = isRest
     ? `Rest day + goal to ${goal}: a light, no-fuss nibble.`
-    : `Quick refuel after your ${a.distanceKm || 0}km ${a.type || "run"} (${a.calories || 0} kcal) — supports your goal to ${goal}.`;
+    : `Quick refuel after your ${labelActivity(a.type || "run")} (${a.calories || 0} kcal) — supports your goal to ${goal}.`;
 
   return [
     {
