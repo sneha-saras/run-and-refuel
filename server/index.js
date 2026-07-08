@@ -4,7 +4,7 @@ const path = require("path");
 
 const storage = require("./storage");
 const { buildActivitySummary } = require("./activity");
-const { getMealTime, suggestMeals } = require("./meals");
+const { getMealTime, suggestMeals, coachReply } = require("./meals");
 const strava = require("./strava");
 
 const app = express();
@@ -78,6 +78,32 @@ app.get("/api/meals", async (req, res) => {
     res.json({ mealTime, category, ...result });
   } catch (err) {
     res.status(500).json({ error: "Failed to generate meals." });
+  }
+});
+
+// Coach chat: adjust the current meal suggestions via natural-language chat.
+// Body: { messages: [{role:'user'|'assistant', content}], meals: [current meals] }
+// Returns: { reply: string, meals: [...] | null }  (null meals => keep current)
+app.post("/api/coach", async (req, res) => {
+  const { messages, meals } = req.body || {};
+  if (!Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: "No messages provided." });
+  }
+  if (!process.env.OPENAI_API_KEY || !process.env.OPENAI_BASE_URL) {
+    return res.json({
+      reply:
+        "Coach needs the meal API configured (set OPENAI_API_KEY). I can't chat in mock mode.",
+      meals: null,
+    });
+  }
+  const profile = storage.getProfile();
+  const activity = storage.getLatestActivity();
+  try {
+    const result = await coachReply(profile, activity, meals || [], messages);
+    res.json(result); // { reply, meals }
+  } catch (err) {
+    console.error("[coach] error:", err.message);
+    res.status(502).json({ error: "Coach is unavailable right now." });
   }
 });
 

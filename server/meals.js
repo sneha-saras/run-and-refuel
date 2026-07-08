@@ -170,8 +170,10 @@ function proxyDispatcher() {
   }
 }
 
-// --- OpenAI-compatible API call ---
-async function callLLM(profile, activity, mealTime, category = "meal") {
+// Low-level chat completion against the configured OpenAI-compatible API.
+// Shared by the meal engine and the coach chat — one client, one set of env
+// vars, one proxy path. Takes a messages array, returns the content string.
+async function chatCompletion(messages, { temperature = 0.7 } = {}) {
   const baseUrl = (process.env.OPENAI_BASE_URL || "").replace(/\/+$/, "");
   const apiKey = process.env.OPENAI_API_KEY;
   const model = process.env.MODEL_NAME || "gpt-4o-mini";
@@ -182,19 +184,12 @@ async function callLLM(profile, activity, mealTime, category = "meal") {
     headers: {
       "Content-Type": "application/json",
       // Bifrost gateways expect the virtual key in the x-bf-vk header.
-      // Also send Authorization for plain OpenAI-compatible endpoints.
+      // Also send Authorization for plain OpenAI-compatible endpoints (Groq, etc).
       "x-bf-vk": apiKey,
       Authorization: `Bearer ${apiKey}`,
     },
     ...(dispatcher ? { dispatcher } : {}),
-    body: JSON.stringify({
-      model,
-      temperature: 0.7,
-      messages: [
-        { role: "system", content: buildSystemPrompt(category) },
-        { role: "user", content: buildUserPrompt(profile, activity, mealTime, category) },
-      ],
-    }),
+    body: JSON.stringify({ model, temperature, messages }),
   });
 
   if (!res.ok) {
@@ -203,6 +198,14 @@ async function callLLM(profile, activity, mealTime, category = "meal") {
   }
   const data = await res.json();
   return data?.choices?.[0]?.message?.content || "";
+}
+
+// --- OpenAI-compatible API call (meal engine) ---
+async function callLLM(profile, activity, mealTime, category = "meal") {
+  return chatCompletion([
+    { role: "system", content: buildSystemPrompt(category) },
+    { role: "user", content: buildUserPrompt(profile, activity, mealTime, category) },
+  ]);
 }
 
 // --- Mock response (used when no API key, or as graceful fallback) ---
@@ -433,6 +436,89 @@ async function suggestMeals(profile, activity, mealTime, category = "meal") {
   }
 }
 
+// =====================================================================
+// Coach chat — an ADDITIVE layer. Reuses chatCompletion + the same env
+// vars and the same JSON parsing. Does not touch the meal-engine path.
+// =====================================================================
+
+function buildCoachSystemPrompt(profile, activity, currentMeals) {
+  const p = profile || {};
+  const a = activity || {};
+  const activityLine =
+    a.type === "rest"
+      ? "Rest day (no run/walk today)."
+      : `${a.type || "run"} — ${a.distanceKm ?? 0} km, ${a.durationMin ?? 0} min, felt ${a.feel || "moderate"}, ~${a.calories ?? 0} kcal, intensity ${a.intensity || "Moderate"}.`;
+
+  return [
+    "You are a friendly, practical Indian fitness meal coach.",
+    "The user has already been shown 3 meal suggestions and wants to adjust them by chatting with you (typing or speaking).",
+    "",
+    "Their profile:",
+    `- Goal: ${labelGoal(p.goal)}. Diet: ${labelDiet(p.diet)}. Cuisine: ${labelCuisine(p.cuisine)}. Effort tolerance: up to ${p.effort || 20} min/dish.`,
+    `- Today's activity: ${activityLine}`,
+    "",
+    "Current suggestions on their screen:",
+    JSON.stringify(currentMeals || [], null, 0),
+    "",
+    "Rules:",
+    "- Read the WHOLE conversation and honor EVERY constraint the user has stated. If they said 'no paneer' earlier, never include paneer again — even in later turns.",
+    "- Keep meals realistic Indian home cooking, matched to their activity and goal, respecting diet/cuisine/effort.",
+    "- Always return exactly 3 updated suggestions in the same shape as before.",
+    "- Adjust based on the latest message (e.g. quicker, lighter, cold, add something, swap an ingredient).",
+    "- IMPORTANT: the meal cards are shown ABOVE the chat, so the user may not notice they changed. Your 'reply' MUST explicitly tell them the meals above were updated, and end with a light follow-up question.",
+    "  End the reply with something like: \"✅ I've updated your meals above — want me to tweak anything else?\" (vary the wording naturally).",
+    "",
+    "Return STRICT JSON only — no markdown, no code fences, no prose outside the JSON. Shape:",
+    "{",
+    '  "reply": string,   // 1-2 friendly sentences acknowledging their message, ending by noting the meals above were updated + a light follow-up',
+    '  "meals": [ { "dish_name": string, "why_this_today": string, "calories": number, "protein_grams": number, "effort_minutes": number, "ingredients": [ { "item": string, "quantity": string } ] } ]',
+    "}",
+    'The "meals" array MUST contain exactly 3 objects.',
+  ].join("\n");
+}
+
+// Build the messages array for a coach turn: system context + full history.
+function buildCoachMessages(profile, activity, currentMeals, history) {
+  const safeHistory = (Array.isArray(history) ? history : [])
+    .filter((m) => m && m.content)
+    .map((m) => ({
+      role: m.role === "assistant" || m.role === "coach" ? "assistant" : "user",
+      content: String(m.content),
+    }));
+  return [
+    { role: "system", content: buildCoachSystemPrompt(profile, activity, currentMeals) },
+    ...safeHistory,
+  ];
+}
+
+// Parse a coach response into { reply, meals }. Reuses fence-stripping and the
+// same meal normalization. `meals` is null if the model didn't return a usable set.
+function parseCoachResponse(rawText) {
+  const cleaned = stripFences(rawText);
+  let parsed;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch (e) {
+    const match = cleaned.match(/\{[\s\S]*\}/);
+    if (!match) return { reply: cleaned || "", meals: null };
+    try {
+      parsed = JSON.parse(match[0]);
+    } catch (e2) {
+      return { reply: cleaned || "", meals: null };
+    }
+  }
+  const reply = typeof parsed.reply === "string" ? parsed.reply : "";
+  const meals = Array.isArray(parsed.meals)
+    ? parsed.meals.map(normalizeMeal).slice(0, 3)
+    : null;
+  return { reply, meals: meals && meals.length ? meals : null };
+}
+
+async function coachReply(profile, activity, currentMeals, history) {
+  const raw = await chatCompletion(buildCoachMessages(profile, activity, currentMeals, history));
+  return parseCoachResponse(raw);
+}
+
 module.exports = {
   getMealTime,
   buildSystemPrompt,
@@ -442,4 +528,8 @@ module.exports = {
   mockMeals,
   mockSnacks,
   suggestMeals,
+  chatCompletion,
+  buildCoachMessages,
+  parseCoachResponse,
+  coachReply,
 };

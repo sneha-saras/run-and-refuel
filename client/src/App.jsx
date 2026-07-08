@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import ActivityCard from "./components/ActivityCard";
 import MealCard from "./components/MealCard";
 import { ProfileForm, ActivityForm } from "./components/Forms";
 import StravaConnect from "./components/StravaConnect";
+import CoachChat from "./components/CoachChat";
 
 const MEAL_TIMES = [
   { value: "breakfast", label: "Breakfast" },
@@ -40,6 +41,27 @@ export default function App() {
   const [error, setError] = useState(null);
   const [stravaStatus, setStravaStatus] = useState(null);
   const [banner, setBanner] = useState(null);
+  const [mealsFlash, setMealsFlash] = useState(false);
+  const mealsSectionRef = useRef(null);
+  const flashTimer = useRef(null);
+
+  // Called when the coach updates the meals: swap them, flash the cards, and
+  // bring them into view (the chat is below, so the change is otherwise unseen).
+  function onCoachMeals(newMeals) {
+    setMeals(newMeals);
+    if (mealsSectionRef.current) {
+      mealsSectionRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    setMealsFlash(false);
+    // Restart the animation cleanly even on rapid successive updates.
+    if (flashTimer.current) clearTimeout(flashTimer.current);
+    requestAnimationFrame(() => {
+      setMealsFlash(true);
+      flashTimer.current = setTimeout(() => setMealsFlash(false), 1600);
+    });
+  }
+
+  useEffect(() => () => { if (flashTimer.current) clearTimeout(flashTimer.current); }, []);
 
   const loadMeals = useCallback(async (mt, cat = "meal") => {
     setMealsLoading(true);
@@ -175,7 +197,10 @@ export default function App() {
             </div>
           )}
 
-          <section className="meals-section">
+          <section
+            className={`meals-section ${mealsFlash ? "meals-section--flash" : ""}`}
+            ref={mealsSectionRef}
+          >
             <div className="meals-header">
               <h2 className="section-title">Refuel suggestions</h2>
 
@@ -232,6 +257,10 @@ export default function App() {
               </div>
             )}
           </section>
+
+          {activity && meals.length > 0 && !mealsLoading && (
+            <CoachChat meals={meals} onMealsUpdated={onCoachMeals} />
+          )}
 
           <StravaConnect
             status={stravaStatus}

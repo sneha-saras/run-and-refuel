@@ -26,6 +26,8 @@ export const api = {
     const qs = params.toString();
     return req(`/api/meals${qs ? `?${qs}` : ""}`);
   },
+  coach: (messages, meals) =>
+    req("/api/coach", { method: "POST", body: JSON.stringify({ messages, meals }) }),
   getStravaStatus: () => req("/api/strava/status"),
   syncStrava: () => req("/api/strava/sync", { method: "POST" }),
   disconnectStrava: () => req("/api/strava/disconnect", { method: "POST" }),
