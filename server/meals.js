@@ -588,47 +588,91 @@ function normalizeFields(o) {
   });
 }
 
-// No-LLM fallback: infer completeness from the accumulated user text.
-function naiveGather(history) {
-  const userText = (history || [])
+// DETERMINISTIC completeness gate: we only have "enough" when the user actually
+// stated a rest day, or a distance/duration quantity. This does NOT trust the
+// model's own `complete` flag — it prevents the model from guessing a distance
+// and skipping the follow-up question.
+function userTextOf(history) {
+  return (history || [])
     .filter((m) => m && m.role !== "assistant" && m.role !== "coach")
     .map((m) => m.content)
-    .join(" ");
-  const t = userText.toLowerCase();
-  const hasDist = /(\d+(?:\.\d+)?)\s*k/.test(t);
-  const hasDur = /(\d+)\s*(?:min|minute|hour)/.test(t);
-  const isRest = /\brest|didn'?t|nothing|off day|skipped\b/.test(t);
-  if (isRest || hasDist || hasDur) {
-    return { reply: "Got it — thanks! Pulling your refuel options…", complete: true, fields: naiveParseActivity(userText) };
-  }
-  const type = /walk/.test(t) ? "walk" : "run";
-  return {
-    reply: `Nice! How far did you ${type === "walk" ? "walk" : "run"}, or how long were you out?`,
-    complete: false,
-    fields: null,
-  };
+    .join(" ")
+    .toLowerCase();
+}
+function isRestText(t) {
+  return /\brest\b|didn'?t|nothing|off day|skipped|no run|no workout/.test(t);
+}
+function hasQuantity(t) {
+  // a number (5k, 10 km, 30 min, 45), or an hour reference in words
+  return /\d/.test(t) || /\b(an?\s+hour|half\s+an\s+hour|hour|hrs?)\b/.test(t);
+}
+function followUpQuestion(t) {
+  const verb = /\bwalk|walked|walking\b/.test(t) ? "walk" : "run";
+  return `Nice! How far did you ${verb}, or how long were you out?`;
 }
 
 async function gatherActivity(profile, history) {
+  const t = userTextOf(history);
+  const enough = isRestText(t) || hasQuantity(t);
   const hasKey = !!(process.env.OPENAI_API_KEY && process.env.OPENAI_BASE_URL);
-  if (!hasKey) return naiveGather(history);
-  const safeHistory = (Array.isArray(history) ? history : [])
-    .filter((m) => m && m.content)
-    .map((m) => ({ role: m.role === "assistant" || m.role === "coach" ? "assistant" : "user", content: String(m.content) }));
-  try {
-    const raw = await chatCompletion([{ role: "system", content: GATHER_SYSTEM }, ...safeHistory], { temperature: 0.3 });
-    const cleaned = stripFences(raw);
-    const match = cleaned.match(/\{[\s\S]*\}/);
-    const o = JSON.parse(match ? match[0] : cleaned);
-    const complete = !!o.complete && o.activity;
-    return {
-      reply: typeof o.reply === "string" ? o.reply : "Tell me a bit more about your workout.",
-      complete: !!complete,
-      fields: complete ? normalizeFields(o.activity) : null,
-    };
-  } catch (e) {
-    return naiveGather(history); // graceful fallback
+
+  // Not enough info yet -> ALWAYS ask a follow-up, never generate meals.
+  if (!enough) {
+    let reply = followUpQuestion(t);
+    if (hasKey) {
+      // Let the model phrase the question naturally, but keep it a question.
+      try {
+        const raw = await chatCompletion(
+          [{ role: "system", content: GATHER_SYSTEM }, ...toLLM(history)],
+          { temperature: 0.3 }
+        );
+        const o = JSON.parse((stripFences(raw).match(/\{[\s\S]*\}/) || [])[0] || "{}");
+        if (o && o.complete === false && typeof o.reply === "string" && o.reply.includes("?")) {
+          reply = o.reply;
+        }
+      } catch (e) {
+        /* keep the canned question */
+      }
+    }
+    return { reply, complete: false, fields: null };
   }
+
+  // Enough info -> confirm + extract fields.
+  if (!hasKey) {
+    return {
+      reply: "Got it — pulling your refuel options…",
+      complete: true,
+      fields: fillActivityGaps(naiveParseActivity(t)),
+    };
+  }
+  try {
+    const raw = await chatCompletion(
+      [{ role: "system", content: GATHER_SYSTEM }, ...toLLM(history)],
+      { temperature: 0.3 }
+    );
+    const o = JSON.parse((stripFences(raw).match(/\{[\s\S]*\}/) || [])[0] || "{}");
+    const fields = normalizeFields(o && o.activity ? o.activity : naiveParseActivity(t));
+    const reply =
+      typeof o.reply === "string" && o.reply.trim()
+        ? o.reply
+        : "Got it — pulling your refuel options…";
+    return { reply, complete: true, fields };
+  } catch (e) {
+    return {
+      reply: "Got it — pulling your refuel options…",
+      complete: true,
+      fields: fillActivityGaps(naiveParseActivity(t)),
+    };
+  }
+}
+
+function toLLM(history) {
+  return (Array.isArray(history) ? history : [])
+    .filter((m) => m && m.content)
+    .map((m) => ({
+      role: m.role === "assistant" || m.role === "coach" ? "assistant" : "user",
+      content: String(m.content),
+    }));
 }
 
 async function parseActivityFromText(text) {

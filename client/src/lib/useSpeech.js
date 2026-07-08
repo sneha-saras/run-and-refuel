@@ -41,39 +41,64 @@ function errorMessage(code) {
 
 // Speech-to-text hook. start(onFinal) begins listening and calls onFinal(text)
 // once the user stops speaking. Exposes live interim transcript + errors.
+// How long a silence ends the turn. Continuous mode + this timer means a short
+// natural pause mid-sentence does NOT cut you off — only a longer silence does.
+const SILENCE_MS = 2600;
+
 export function useSpeech() {
   const [listening, setListening] = useState(false);
   const [interim, setInterim] = useState("");
   const [error, setError] = useState(null);
   const recRef = useRef(null);
-  const finalRef = useRef("");
+  const transcriptRef = useRef("");
+  const silenceRef = useRef(null);
+
+  function clearSilence() {
+    if (silenceRef.current) {
+      clearTimeout(silenceRef.current);
+      silenceRef.current = null;
+    }
+  }
 
   function start(onFinal) {
     if (!SUPPORTS_STT || listening) return;
     setError(null);
     setInterim("");
-    finalRef.current = "";
+    transcriptRef.current = "";
     const rec = new SR();
     rec.lang = "en-IN";
     rec.interimResults = true;
-    rec.continuous = false;
+    rec.continuous = true; // don't end on the first pause
 
-    rec.onstart = () => setListening(true);
+    const armSilence = () => {
+      clearSilence();
+      silenceRef.current = setTimeout(() => {
+        try { rec.stop(); } catch (e) {}
+      }, SILENCE_MS);
+    };
+
+    rec.onstart = () => {
+      setListening(true);
+      armSilence();
+    };
     rec.onresult = (e) => {
       let t = "";
       for (let i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
+      transcriptRef.current = t;
       setInterim(t);
-      if (e.results[e.results.length - 1].isFinal) finalRef.current = t;
+      armSilence(); // reset the silence countdown on every bit of speech
     };
     rec.onerror = (e) => {
+      clearSilence();
       setListening(false);
       const msg = errorMessage(e && e.error);
       if (msg) setError(msg);
     };
     rec.onend = () => {
+      clearSilence();
       setListening(false);
-      const finalText = finalRef.current.trim();
-      finalRef.current = "";
+      const finalText = transcriptRef.current.trim();
+      transcriptRef.current = "";
       setInterim("");
       if (finalText && onFinal) onFinal(finalText);
     };
@@ -83,12 +108,14 @@ export function useSpeech() {
     try {
       rec.start();
     } catch (err) {
+      clearSilence();
       setListening(false);
       setError(`Couldn't start the mic (${err.name}). Try again in a moment.`);
     }
   }
 
   function stop() {
+    clearSilence();
     try {
       if (recRef.current) recRef.current.stop();
     } catch (e) {}
