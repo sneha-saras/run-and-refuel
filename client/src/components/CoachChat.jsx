@@ -13,10 +13,10 @@ const PROMPTS = [
 // activity to ADJUSTING the meals, referencing what was captured.
 function introFor(a) {
   const tail = "Want me to tweak anything — quicker, lighter, no paneer, something cold?";
-  if (!a) return `Here are your refuel suggestions below. ${tail}`;
-  if (a.type === "rest") return `Based on your rest day, here are your refuel suggestions below. ${tail}`;
+  if (!a) return `Your refuel suggestions are above ☝️ ${tail}`;
+  if (a.type === "rest") return `Based on your rest day, your suggestions are above ☝️ ${tail}`;
   const dist = a.distanceKm ? `${a.distanceKm}km ` : "";
-  return `Based on your ${dist}${a.type}, here are your refuel suggestions below. ${tail}`;
+  return `Based on your ${dist}${a.type}, your suggestions are above ☝️ ${tail}`;
 }
 
 // Voice-first coach hero. Speaks with you: hear your activity + goal (already

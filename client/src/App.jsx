@@ -153,6 +153,12 @@ export default function App() {
 
   useEffect(() => () => { if (flashTimer.current) clearTimeout(flashTimer.current); }, []);
 
+  // On any step change, jump to the top so the new step is seen from its start
+  // (fixes landing on Step 3 already scrolled down onto the coach).
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [step]);
+
   function onProfileSaved(p) {
     setProfile(p);
     setBanner(null);
@@ -298,16 +304,7 @@ export default function App() {
             <button className="chip-btn chip-btn--warn" onClick={startOver}>Start over</button>
           </div>
 
-          {/* Voice hero — front and center, fuses spoken context with the activity */}
-          {meals.length > 0 && !mealsLoading && (
-            <CoachChat
-              meals={meals}
-              profile={profile}
-              activity={activity}
-              onMealsUpdated={onCoachMeals}
-            />
-          )}
-
+          {/* Meals first — the payoff is visible immediately on landing here */}
           <section
             className={`meals-section ${mealsFlash ? "meals-section--flash" : ""}`}
             ref={mealsSectionRef}
@@ -362,6 +359,16 @@ export default function App() {
               </div>
             )}
           </section>
+
+          {/* Coach — prominent, right under the meals it adjusts */}
+          {meals.length > 0 && !mealsLoading && (
+            <CoachChat
+              meals={meals}
+              profile={profile}
+              activity={activity}
+              onMealsUpdated={onCoachMeals}
+            />
+          )}
         </section>
       )}
 
